@@ -122,7 +122,10 @@ Passo a passo com Nginx, HTTPS e `docker-compose.hostinger.yml`: [deploy/hosting
 
 ### Produção sem VPS — Vercel + Railway
 
-Guia curto (site na Vercel, API na Railway): [deploy/VERCEL_RAILWAY.md](deploy/VERCEL_RAILWAY.md).
+Guia passo a passo: [deploy/VERCEL_RAILWAY.md](deploy/VERCEL_RAILWAY.md).  
+**Código no GitHub:** [github.com/DonJuanDev/ProjetoJR](https://github.com/DonJuanDev/ProjetoJR) — após clonar/configure Railway (root `backend`) e Vercel (root `frontend`).
+
+Para enviar mudanças locais de volta ao GitHub: `powershell -File scripts/atualizar-github.ps1 -Mensagem "sua mensagem"`
 
 ---
 
