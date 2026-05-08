@@ -52,7 +52,12 @@ Se o remoto já existir e der erro, use `git remote set-url origin https://githu
 
 7. **Deploy**. Abra no navegador: `https://SUA-URL-RAILWAY/api/health` → deve responder `{"ok":true}`.
 
-**Primeira vez — criar tenant (banco vazio):**
+**Tenant demo (`demo-club`):** no primeiro deploy o container roda `prisma migrate deploy` e em seguida **`prisma db seed`** (idempotente). Isso cria o tenant `demo-club` com `admin@demo.com` / `admin123`, etc. Em deploys seguintes o seed é ignorado se `demo-club` já existir.
+
+- Para **não** rodar o seed (instalação só via API), defina na Railway: `SKIP_DEMO_SEED` = `true`.
+- Para **forçar** rodar o seed de novo: `FORCE_PRISMA_SEED` = `1` *(uso pontual)*.
+
+Se o banco foi criado antes dessa automação e está vazio, faça um **Redeploy** do backend ou rode manualmente:
 
 ```bash
 curl -X POST https://SUA-URL-RAILWAY/api/tenants \

@@ -7,6 +7,7 @@ export class TenantsService {
   constructor(private prisma: PrismaService) {}
 
   async criar(nome: string, slug: string, adminEmail: string, adminSenha: string) {
+    slug = slug.trim().toLowerCase();
     const existe = await this.prisma.tenant.findUnique({ where: { slug } });
     if (existe) throw new ConflictException('Slug já em uso');
 

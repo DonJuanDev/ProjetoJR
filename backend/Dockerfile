@@ -23,4 +23,5 @@ COPY --from=builder /app/prisma ./prisma
 COPY package*.json ./
 
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+# Após migrate, garante tenant demo (upsert idempotente). Veja prisma/seed.ts e SKIP_DEMO_SEED.
+CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$SKIP_DEMO_SEED\" != \"true\" ]; then npx prisma db seed; fi && node dist/src/main.js"]

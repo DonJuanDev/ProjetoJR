@@ -11,8 +11,9 @@ export class AuthService {
   ) {}
 
   async login(email: string, senha: string, tenantSlug: string) {
+    const slug = tenantSlug.trim().toLowerCase();
     const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+      where: { slug },
     });
 
     if (!tenant || !tenant.ativo) {

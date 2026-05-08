@@ -4,6 +4,15 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  const force = process.env.FORCE_PRISMA_SEED === '1';
+  if (!force) {
+    const demo = await prisma.tenant.findUnique({ where: { slug: 'demo-club' } });
+    if (demo) {
+      console.log('Seed: tenant demo-club já existe — ignorando.');
+      return;
+    }
+  }
+
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'demo-club' },
     update: {},
@@ -64,17 +73,11 @@ async function main() {
   ];
 
   for (const p of produtos) {
-    await prisma.produto.upsert({
-      where: { id: p.nome },
-      update: {},
-      create: {
-        tenantId: tenant.id,
-        nome: p.nome,
-        preco: p.preco,
-        categoria: p.categoria,
-      },
-    }).catch(() => {
-      return prisma.produto.create({
+    const exists = await prisma.produto.findFirst({
+      where: { tenantId: tenant.id, nome: p.nome },
+    });
+    if (!exists) {
+      await prisma.produto.create({
         data: {
           tenantId: tenant.id,
           nome: p.nome,
@@ -82,7 +85,7 @@ async function main() {
           categoria: p.categoria,
         },
       });
-    });
+    }
   }
 
   console.log('Seed concluído! Tenant:', tenant.slug);

@@ -2,6 +2,9 @@
   "name": "gateway-backend",
   "version": "1.0.0",
   "description": "Gateway SaaS - Backend API",
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
   "scripts": {
     "build": "nest build",
     "start": "node dist/src/main.js",
