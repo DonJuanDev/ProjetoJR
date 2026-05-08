@@ -56,8 +56,9 @@ export default function DashboardPage() {
     return () => { s.off('comanda:criada', fetch); s.off('pedido:adicionado', fetch); s.off('pagamento:confirmado', fetch) }
   }, [fetch])
 
-  const abertas  = data?.comandas.filter(c => c.status === 'ABERTA') || []
-  const recentes = data?.comandas.slice(0, 10) || []
+  const comandas = Array.isArray(data?.comandas) ? data!.comandas : []
+  const abertas = comandas.filter(c => c.status === 'ABERTA')
+  const recentes = comandas.slice(0, 10)
 
   return (
     <div className="space-y-8 pb-6">
@@ -116,7 +117,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>{formatCurrency(c.total)}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-3)' }}>{c.pedidos.length} ped.</p>
+                  <p className="text-xs" style={{ color: 'var(--text-3)' }}>{c.pedidos?.length ?? 0} ped.</p>
                 </div>
                 <p className="text-xs w-12 text-right flex-shrink-0" style={{ color: 'var(--text-3)' }}>
                   {new Date(c.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
