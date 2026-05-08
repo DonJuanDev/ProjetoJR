@@ -15,7 +15,11 @@ export interface AuthState {
 }
 
 export async function login(email: string, senha: string, tenantSlug: string): Promise<AuthState> {
-  const result = await api.post<AuthState>('/auth/login', { email, senha, tenantSlug })
+  const result = await api.post<AuthState>('/auth/login', {
+    email: email.trim().toLowerCase(),
+    senha,
+    tenantSlug: tenantSlug.trim().toLowerCase(),
+  })
   localStorage.setItem('gateway_token', result.access_token)
   localStorage.setItem('gateway_user', JSON.stringify(result.usuario))
   return result

@@ -52,12 +52,16 @@ Se o remoto já existir e der erro, use `git remote set-url origin https://githu
 
 7. **Deploy**. Abra no navegador: `https://SUA-URL-RAILWAY/api/health` → deve responder `{"ok":true}`.
 
-**Tenant demo (`demo-club`):** no primeiro deploy o container roda `prisma migrate deploy` e em seguida **`prisma db seed`** (idempotente). Isso cria o tenant `demo-club` com `admin@demo.com` / `admin123`, etc. Em deploys seguintes o seed é ignorado se `demo-club` já existir.
+**Tenant demo (`demo-club`):** ao **subir a API**, o Nest executa `ensureDemoTenant` (upsert idempotente): cria o tenant, usuários demo e produtos base. **Não depende** de `prisma db seed` no Docker.
 
-- Para **não** rodar o seed (instalação só via API), defina na Railway: `SKIP_DEMO_SEED` = `true`.
-- Para **forçar** rodar o seed de novo: `FORCE_PRISMA_SEED` = `1` *(uso pontual)*.
+- Para **desligar** esse bootstrap (só tenants criados manualmente): `DISABLE_DEMO_BOOTSTRAP` = `true`.
+- Slug/nome opcionais: `BOOTSTRAP_TENANT_SLUG`, `BOOTSTRAP_TENANT_NOME`.
 
-Se o banco foi criado antes dessa automação e está vazio, faça um **Redeploy** do backend ou rode manualmente:
+Seed via CLI (`npm run prisma:seed` / `prisma db seed`) continua útil em desenvolvimento.
+
+Se o serviço não sobe, veja os logs do Railway — erros no banco aparecem antes do login.
+
+**Alternativa:** criar outro tenant/admin manualmente:
 
 ```bash
 curl -X POST https://SUA-URL-RAILWAY/api/tenants \
@@ -105,7 +109,7 @@ Se usar domínio customizado na Vercel, coloque **esse** URL em `FRONTEND_URL`.
 ## Ordem rápida (resumo)
 
 1. `git push` → GitHub  
-2. Railway: backend, volume `/data`, envs, domínio, testar `/api/health`, criar tenant  
+2. Railway: backend, volume `/data`, envs, domínio, testar `/api/health` *(tenant demo na subida da API)*  
 3. Vercel: frontend com `NEXT_PUBLIC_*` apontando para Railway  
 4. Railway: atualizar `FRONTEND_URL` + redeploy  
 
@@ -118,4 +122,4 @@ Se usar domínio customizado na Vercel, coloque **esse** URL em `FRONTEND_URL`.
 | “Failed to fetch” / CORS | `FRONTEND_URL` no Railway = URL **exata** do site na Vercel (https). |
 | Dados sumiram | Volume Railway não montado em `/data` ou `DATABASE_URL` ≠ `file:/data/prod.db`. |
 | WebSocket não atualiza | `NEXT_PUBLIC_WS_URL` = base HTTPS do Railway, **sem** `/api`. |
-| Login não existe | Rodar o `curl` de criação de tenant (`POST /api/tenants`). |
+| Login “tenant não encontrado” | Redeploy do backend com código atual; logs: `[JR Gateway] Tenant demo garantido`. Confira `NEXT_PUBLIC_API_URL`. Não use `DISABLE_DEMO_BOOTSTRAP` salvo se criar tenants só via API. |

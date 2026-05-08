@@ -23,5 +23,5 @@ COPY --from=builder /app/prisma ./prisma
 COPY package*.json ./
 
 EXPOSE 3001
-# Após migrate, garante tenant demo (upsert idempotente). Veja prisma/seed.ts e SKIP_DEMO_SEED.
-CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$SKIP_DEMO_SEED\" != \"true\" ]; then npx prisma db seed; fi && node dist/src/main.js"]
+# Tenant demo é criado pelo Nest ao iniciar (ensure-demo-tenant). Seed CLI é opcional em dev.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
