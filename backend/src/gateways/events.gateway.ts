@@ -52,20 +52,31 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { event: 'joined', data: { room: `tenant:${data.tenantId}` } };
   }
 
+  /** Evita 500 se o servidor WS ainda não inicializou ou o emit falhar. */
+  private safeEmit(run: (s: Server) => void) {
+    try {
+      if (this.server) run(this.server);
+    } catch (e) {
+      console.error('EventsGateway emit falhou', e);
+    }
+  }
+
   emitComandaAtualizada(comandaId: string, data: any) {
-    this.server.to(`comanda:${comandaId}`).emit('comanda:atualizada', data);
+    this.safeEmit((s) => s.to(`comanda:${comandaId}`).emit('comanda:atualizada', data));
   }
 
   emitPedidoAdicionado(tenantId: string, comandaId: string, data: any) {
-    this.server.to(`tenant:${tenantId}`).emit('pedido:adicionado', data);
-    this.server.to(`comanda:${comandaId}`).emit('comanda:atualizada', data);
+    this.safeEmit((s) => {
+      s.to(`tenant:${tenantId}`).emit('pedido:adicionado', data);
+      s.to(`comanda:${comandaId}`).emit('comanda:atualizada', data);
+    });
   }
 
   emitPagamentoConfirmado(comandaId: string, data: any) {
-    this.server.to(`comanda:${comandaId}`).emit('pagamento:confirmado', data);
+    this.safeEmit((s) => s.to(`comanda:${comandaId}`).emit('pagamento:confirmado', data));
   }
 
   emitComandaCriada(tenantId: string, data: any) {
-    this.server.to(`tenant:${tenantId}`).emit('comanda:criada', data);
+    this.safeEmit((s) => s.to(`tenant:${tenantId}`).emit('comanda:criada', data));
   }
 }

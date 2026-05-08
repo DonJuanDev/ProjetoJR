@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ComandasService } from './comandas.service';
 import { CreateComandaDto } from './dto/create-comanda.dto';
+import { ValidarSaidaDto } from './dto/validar-saida.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('comandas')
@@ -39,10 +40,18 @@ export class ComandasController {
     return this.service.buscarPorHash(hash);
   }
 
+  /** Preferível: body aceita URL inteira, hash ou código da pulseira sem limite de URL. */
+  @Post('validar')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  validarSaidaPost(@Body() dto: ValidarSaidaDto, @Request() req) {
+    return this.service.validarSaida(dto.raw, req.user.tenantId);
+  }
+
   @Get('validar/:hash')
   @UseGuards(JwtAuthGuard)
   validarSaida(@Param('hash') hash: string, @Request() req) {
-    return this.service.validarSaida(hash, req.user.tenantId);
+    return this.service.validarSaida(decodeURIComponent(hash), req.user.tenantId);
   }
 
   @Get(':id')

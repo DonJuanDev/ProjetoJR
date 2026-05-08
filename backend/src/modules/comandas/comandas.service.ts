@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../../gateways/events.gateway';
 import { CreateComandaDto } from './dto/create-comanda.dto';
@@ -17,8 +18,15 @@ export class ComandasService {
     private events: EventsGateway,
   ) {}
 
+  /** 6 caracteres A–Z0–9 com entropia adequada (evita colisão em `codigo` @unique). */
   private gerarCodigo(): string {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+    const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let out = '';
+    const buf = crypto.randomBytes(8);
+    for (let i = 0; i < 6; i++) {
+      out += alphabet[buf[i] % alphabet.length];
+    }
+    return out;
   }
 
   private gerarQrHash(comandaId: string): string {
@@ -30,35 +38,56 @@ export class ComandasService {
   }
 
   async criar(tenantId: string, dto: CreateComandaDto) {
-    const id = uuidv4();
-    const codigo = this.gerarCodigo();
-    const qrHash = this.gerarQrHash(id);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const qrUrl = `${frontendUrl}/cliente/${qrHash}`;
+    const maxAttempts = 12;
 
-    const qrCodeUrl = await QRCode.toDataURL(qrUrl, {
-      errorCorrectionLevel: 'H',
-      margin: 2,
-      width: 300,
-    });
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const id = uuidv4();
+      const codigo = this.gerarCodigo();
+      const qrHash = this.gerarQrHash(id);
+      const qrUrl = `${frontendUrl}/cliente/${qrHash}`;
 
-    const comanda = await this.prisma.comanda.create({
-      data: {
-        id,
-        tenantId,
-        eventoId: dto.eventoId || null,
-        codigo,
-        qrCodeHash: qrHash,
-        qrCodeUrl,
-        clienteNome: dto.clienteNome || null,
-        clienteTelefone: dto.clienteTelefone || null,
-        status: 'ABERTA',
-        total: 0,
-      },
-    });
+      let qrCodeUrl: string;
+      try {
+        qrCodeUrl = await QRCode.toDataURL(qrUrl, {
+          errorCorrectionLevel: 'H',
+          margin: 2,
+          width: 300,
+        });
+      } catch (e) {
+        console.error('QRCode.toDataURL falhou', e);
+        throw new BadRequestException('Falha ao gerar imagem do QR Code.');
+      }
 
-    this.events.emitComandaCriada(tenantId, comanda);
-    return comanda;
+      try {
+        const comanda = await this.prisma.comanda.create({
+          data: {
+            id,
+            tenantId,
+            eventoId: dto.eventoId || null,
+            codigo,
+            qrCodeHash: qrHash,
+            qrCodeUrl,
+            clienteNome: dto.clienteNome || null,
+            clienteTelefone: dto.clienteTelefone || null,
+            status: 'ABERTA',
+            total: 0,
+          },
+        });
+
+        this.events.emitComandaCriada(tenantId, comanda);
+        return comanda;
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    throw new BadRequestException(
+      'Não foi possível gerar código único para a comanda. Tente de novo em instantes.',
+    );
   }
 
   async listar(tenantId: string) {
@@ -116,14 +145,62 @@ export class ComandasService {
     return comanda;
   }
 
-  async validarSaida(qrHash: string, tenantId: string) {
+  /** Extrai candidatos a partir do que o porteiro colou ou o scanner leu (URL, hash ou código). */
+  private resolvePortariaCandidates(raw: string): string[] {
+    const t = raw.trim();
+    if (!t) return [];
+
+    const candidates = new Set<string>();
+    const add = (s: string | undefined | null) => {
+      if (!s) return;
+      const x = s.trim();
+      if (x.length < 2) return;
+      candidates.add(x);
+      candidates.add(x.toUpperCase());
+    };
+
+    add(t);
+    add(t.replace(/^#/, ''));
+
+    try {
+      const u = new URL(t, 'https://gateway.local');
+      const seg = u.pathname.split('/').filter(Boolean).pop();
+      add(seg);
+    } catch {
+      /* não é URL */
+    }
+
+    return [...candidates];
+  }
+
+  async validarSaida(rawInput: string, tenantId: string) {
+    const keys = this.resolvePortariaCandidates(rawInput);
+    if (!keys.length) {
+      return {
+        valida: false,
+        status: 'INVALID',
+        mensagem:
+          'Informe o código da pulseira (#XXXXXX), cole o link da comanda ou o texto lido pelo scanner.',
+      };
+    }
+
+    const orClause = keys.flatMap((k) => [
+      { qrCodeHash: k },
+      { codigo: k },
+    ]);
+
     const comanda = await this.prisma.comanda.findFirst({
-      where: { qrCodeHash: qrHash, tenantId },
+      where: { tenantId, OR: orClause },
       include: { pagamentos: true },
     });
 
     if (!comanda) {
-      return { valida: false, status: 'NOT_FOUND', mensagem: 'Comanda não encontrada' };
+      return {
+        valida: false,
+        status: 'NOT_FOUND',
+        mensagem:
+          'Comanda não encontrada. Confira o código da pulseira ou escaneie o QR da página do cliente.',
+      };
     }
 
     if (comanda.status === 'PAGA') {
