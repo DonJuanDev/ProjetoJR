@@ -11,13 +11,19 @@ export class AuthService {
   ) {}
 
   async login(email: string, senha: string, tenantSlug: string) {
-    const slug = tenantSlug.trim().toLowerCase();
+    const slug = (tenantSlug ?? '').trim().toLowerCase();
+    if (!slug) {
+      throw new UnauthorizedException('Informe o estabelecimento (slug), ex.: demo-club.');
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { slug },
     });
 
     if (!tenant || !tenant.ativo) {
-      throw new UnauthorizedException('Tenant não encontrado');
+      throw new UnauthorizedException(
+        `Estabelecimento "${slug}" não encontrado ou inativo. Confira o slug no login e se o backend subiu (logs: tenant demo ao iniciar).`,
+      );
     }
 
     const usuario = await this.prisma.usuario.findUnique({
