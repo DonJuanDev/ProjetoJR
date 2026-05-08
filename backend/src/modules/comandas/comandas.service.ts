@@ -184,15 +184,29 @@ export class ComandasService {
       };
     }
 
-    const orClause = keys.flatMap((k) => [
-      { qrCodeHash: k },
-      { codigo: k },
-    ]);
+    const hexKeys = [
+      ...new Set(
+        keys
+          .map((k) => k.trim().toLowerCase())
+          .filter((k) => /^[a-f0-9]{32}$/.test(k)),
+      ),
+    ];
 
-    const comanda = await this.prisma.comanda.findFirst({
-      where: { tenantId, OR: orClause },
-      include: { pagamentos: true },
-    });
+    let comanda =
+      hexKeys.length > 0
+        ? await this.prisma.comanda.findFirst({
+            where: { tenantId, qrCodeHash: { in: hexKeys } },
+            include: { pagamentos: true },
+          })
+        : null;
+
+    if (!comanda) {
+      const orClause = keys.flatMap((k) => [{ codigo: k.trim() }, { codigo: k.trim().toUpperCase() }]);
+      comanda = await this.prisma.comanda.findFirst({
+        where: { tenantId, OR: orClause },
+        include: { pagamentos: true },
+      });
+    }
 
     if (!comanda) {
       return {
@@ -203,7 +217,10 @@ export class ComandasService {
       };
     }
 
-    if (comanda.status === 'PAGA') {
+    const st = String(comanda.status || '').trim().toUpperCase();
+    const total = Number(comanda.total);
+
+    if (st === 'PAGA') {
       return {
         valida: true,
         status: 'PAGA',
@@ -212,7 +229,17 @@ export class ComandasService {
       };
     }
 
-    if (comanda.status === 'ABERTA' || comanda.status === 'AGUARDANDO_PAGAMENTO') {
+    // Sem valor em aberto: libera mesmo se o status ainda não foi sincronizado como PAGA
+    if (total <= 0 && st !== 'BLOQUEADA' && st !== 'CANCELADA') {
+      return {
+        valida: true,
+        status: 'SEM_CONSUMO',
+        mensagem: 'Sem valor em aberto. Saída liberada.',
+        comanda: { id: comanda.id, codigo: comanda.codigo, total: comanda.total },
+      };
+    }
+
+    if (st === 'ABERTA' || st === 'AGUARDANDO_PAGAMENTO') {
       return {
         valida: false,
         status: 'PENDENTE',
@@ -221,7 +248,7 @@ export class ComandasService {
       };
     }
 
-    if (comanda.status === 'BLOQUEADA') {
+    if (st === 'BLOQUEADA') {
       return { valida: false, status: 'BLOQUEADA', mensagem: 'Comanda bloqueada' };
     }
 

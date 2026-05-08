@@ -49,6 +49,12 @@ export default function ComandasPage() {
     return () => { s.off('comanda:criada'); s.off('pedido:adicionado'); s.off('pagamento:confirmado') }
   }, [fetchComandas])
 
+  useEffect(() => {
+    if (!showQR) return
+    const atual = comandas.find((c) => c.id === showQR.id)
+    if (atual) setShowQR(atual)
+  }, [comandas, showQR?.id])
+
   async function aprovarPagamento(c: Comanda) {
     setAprovando(true)
     try {

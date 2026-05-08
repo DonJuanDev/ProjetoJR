@@ -372,10 +372,13 @@ export class PagamentosService {
         data: { status: 'PAGO' },
       });
 
-      // Verifica se todas as partes foram pagas
-      const todasPagas = divisao.comanda.divisoes
-        .filter((d) => d.id !== divisao.id)
-        .every((d) => d.status === 'PAGO');
+      // Estado fresco do banco (include anterior tinha status stale → comanda nunca virava PAGA na última parte)
+      const divisoesAtualizadas = await this.prisma.divisaoConta.findMany({
+        where: { comandaId: divisao.comandaId },
+      });
+      const todasPagas =
+        divisoesAtualizadas.length > 0 &&
+        divisoesAtualizadas.every((d) => d.status === 'PAGO');
 
       if (todasPagas) {
         await this.prisma.comanda.update({
