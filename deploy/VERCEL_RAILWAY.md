@@ -33,7 +33,7 @@ Se o remoto já existir e der erro, use `git remote set-url origin https://githu
 3. Na configuração do serviço:
    - **Root Directory**: `backend`
    - Railway detecta o `Dockerfile` e o [`railway.toml`](backend/railway.toml).
-4. **Variables** (Environment):
+4. **Variables** (Environment) — **obrigatório** incluir `DATABASE_URL` (se faltar, o container reinicia em loop):
    | Name | Valor (exemplo) |
    |------|------------------|
    | `DATABASE_URL` | `file:/data/prod.db` |

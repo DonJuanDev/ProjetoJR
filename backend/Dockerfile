@@ -1,4 +1,5 @@
 FROM node:20-alpine AS base
+RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 
 FROM base AS deps
@@ -13,6 +14,8 @@ RUN npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
+# Padrão para Railway/VPS com volume em /data (Railway pode sobrescrever nas Variables)
+ENV DATABASE_URL=file:/data/prod.db
 RUN mkdir -p /data
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
