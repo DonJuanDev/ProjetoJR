@@ -8,20 +8,16 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-
-function socketCorsOrigins(): string | string[] {
-  const list = (process.env.FRONTEND_URL || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (list.length === 0) return 'http://localhost:3000';
-  if (list.length === 1) return list[0];
-  return list;
-}
+import { isAllowedFrontendOrigin } from '../common/cors-allow';
 
 @WebSocketGateway({
   cors: {
-    origin: socketCorsOrigins(),
+    origin: (
+      origin: string | undefined,
+      cb: (err: Error | null, ok?: boolean) => void,
+    ) => {
+      cb(null, isAllowedFrontendOrigin(origin));
+    },
     credentials: true,
   },
   namespace: '/',

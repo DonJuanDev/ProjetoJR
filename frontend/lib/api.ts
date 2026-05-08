@@ -18,8 +18,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     res = await fetch(`${API_URL}${path}`, { ...options, headers })
   } catch {
     throw new Error(
-      `Sem conexão com a API (${API_URL}). Suba o backend na pasta backend com "npm run start:dev" (porta 3001), ` +
-        `use o mesmo host no navegador (localhost ou 127.0.0.1) e confira NEXT_PUBLIC_API_URL no .env.local.`,
+      `Sem conexão com a API (${API_URL}). Em produção (Vercel + Railway): confira CORS no backend e ` +
+        `FRONTEND_URL nas Variables do Railway; no navegador, veja F12 → Network/Console. Em dev local: suba o backend ` +
+        `(npm run start:dev na pasta backend, porta 3001), use localhost no navegador e NEXT_PUBLIC_API_URL no .env.local.`,
     )
   }
 
