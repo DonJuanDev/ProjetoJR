@@ -20,6 +20,7 @@ Thumbs.db
 # Build
 .vercel
 .railway
+*.tsbuildinfo
 
 # IDE
 .vscode/
