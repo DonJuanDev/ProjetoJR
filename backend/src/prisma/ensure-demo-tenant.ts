@@ -19,10 +19,21 @@ const PRODUTOS = [
  */
 export async function ensureDemoTenant(prisma: PrismaClient): Promise<void> {
   if (process.env.DISABLE_DEMO_BOOTSTRAP === 'true') {
+    console.warn('[JR Gateway bootstrap] DISABLE_DEMO_BOOTSTRAP=true — tenant demo NÃO será criado.');
     return;
   }
 
   const slug = (process.env.BOOTSTRAP_TENANT_SLUG || 'demo-club').trim().toLowerCase();
+
+  let antes = 0;
+  try {
+    antes = await prisma.tenant.count();
+  } catch (e) {
+    console.error('[JR Gateway bootstrap] falha ao contar tenants (banco OK?)', e);
+    throw e;
+  }
+
+  console.log(`[JR Gateway bootstrap] garantindo tenant slug="${slug}" (tenants antes: ${antes})`);
 
   const tenant = await prisma.tenant.upsert({
     where: { slug },
@@ -72,5 +83,5 @@ export async function ensureDemoTenant(prisma: PrismaClient): Promise<void> {
     }
   }
 
-  console.log(`[JR Gateway] Tenant demo garantido: slug="${slug}" (admin@demo.com / admin123)`);
+  console.log(`[JR Gateway bootstrap] OK slug="${slug}" id=${tenant.id} — admin@demo.com / admin123`);
 }

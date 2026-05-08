@@ -1,10 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -12,7 +14,18 @@ export class AuthService {
 
   async login(email: string, senha: string, tenantSlug: string) {
     const slug = (tenantSlug ?? '').trim().toLowerCase();
+    const normalizedEmail = (email ?? '').trim().toLowerCase();
+
+    const maskEmail = (e: string) => {
+      if (!e || !e.includes('@')) return '(inválido)';
+      const [u, d] = e.split('@');
+      return `${u.slice(0, 2)}***@${d}`;
+    };
+
+    this.logger.log(`[login] slug recebido="${slug}" email="${maskEmail(normalizedEmail)}"`);
+
     if (!slug) {
+      this.logger.warn('[login] recusado: slug vazio após trim');
       throw new UnauthorizedException('Informe o estabelecimento (slug), ex.: demo-club.');
     }
 
@@ -20,24 +33,47 @@ export class AuthService {
       where: { slug },
     });
 
-    if (!tenant || !tenant.ativo) {
+    if (!tenant) {
+      const total = await this.prisma.tenant.count();
+      const sample = await this.prisma.tenant.findMany({
+        select: { slug: true },
+        take: 20,
+        orderBy: { slug: 'asc' },
+      });
+      const lista = sample.map((t) => t.slug).join(', ') || '(nenhum)';
+      this.logger.warn(
+        `[login] TENANT_INEXISTENTE slug="${slug}" | tenants no banco: ${total} | slugs exemplo: ${lista}`,
+      );
       throw new UnauthorizedException(
-        `Estabelecimento "${slug}" não encontrado ou inativo. Confira o slug no login e se o backend subiu (logs: tenant demo ao iniciar).`,
+        `Estabelecimento "${slug}" não encontrado. (${total} tenant(s) no servidor; exemplos: ${lista})`,
+      );
+    }
+
+    if (!tenant.ativo) {
+      this.logger.warn(`[login] TENANT_INATIVO slug="${slug}" id=${tenant.id}`);
+      throw new UnauthorizedException(
+        `Estabelecimento "${slug}" está inativo.`,
       );
     }
 
     const usuario = await this.prisma.usuario.findUnique({
-      where: { email_tenantId: { email, tenantId: tenant.id } },
+      where: { email_tenantId: { email: normalizedEmail, tenantId: tenant.id } },
     });
 
     if (!usuario || !usuario.ativo) {
+      this.logger.warn(
+        `[login] USUARIO_INEXISTENTE_OU_INATIVO tenant="${slug}" email_hash="${normalizedEmail ? '***' + normalizedEmail.slice(-8) : 'vazio'}"`,
+      );
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
     const senhaValida = await bcrypt.compare(senha, usuario.senha);
     if (!senhaValida) {
+      this.logger.warn(`[login] SENHA_INCORRETA tenant="${slug}" userId=${usuario.id}`);
       throw new UnauthorizedException('Credenciais inválidas');
     }
+
+    this.logger.log(`[login] OK tenant="${slug}" user=${usuario.id}`);
 
     const payload = {
       sub: usuario.id,

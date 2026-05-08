@@ -25,8 +25,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Erro desconhecido' }))
-    throw new Error(err.message || `HTTP ${res.status}`)
+    const errBody = await res.json().catch(() => ({}) as Record<string, unknown>)
+    const raw = errBody.message
+    const msg =
+      typeof raw === 'string'
+        ? raw
+        : Array.isArray(raw)
+          ? raw.join('; ')
+          : typeof raw === 'object' && raw !== null && 'error' in raw && typeof (raw as { error: string }).error === 'string'
+            ? (raw as { error: string }).error
+            : 'Erro desconhecido'
+    throw new Error(`${msg} [HTTP ${res.status}]`)
   }
 
   return res.json()
