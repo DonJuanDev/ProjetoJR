@@ -1,0 +1,43 @@
+# Produção na VPS (ex.: Hostinger): SQLite persistente + front/back apenas em localhost.
+# HTTPS e proxy ficam no Nginx do servidor — ver deploy/hostinger/README.md
+#
+# Uso:
+#   cp deploy/hostinger/env.hostinger.example deploy/hostinger/.env
+#   # edite JWT_SECRET, QR_SECRET, FRONTEND_URL, BACKEND_URL
+#   docker compose -f docker-compose.hostinger.yml up -d --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gateway_backend_prod
+    restart: unless-stopped
+    env_file:
+      - ./deploy/hostinger/.env
+    environment:
+      DATABASE_URL: file:/app/data/prod.db
+      NODE_ENV: production
+      PORT: 3001
+    volumes:
+      - gateway_sqlite_data:/app/data
+    ports:
+      - '127.0.0.1:3001:3001'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://visionmetricsapp.com.br/api
+        NEXT_PUBLIC_WS_URL: https://visionmetricsapp.com.br
+        NEXT_PUBLIC_TENANT_SLUG: demo-club
+    container_name: gateway_frontend_prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '127.0.0.1:3000:3000'
+
+volumes:
+  gateway_sqlite_data:

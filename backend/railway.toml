@@ -1,0 +1,8 @@
+# Railway: crie o serviço com Root Directory = `backend`.
+# Volume persistente em `/data` + DATABASE_URL=file:/data/prod.db — ver deploy/VERCEL_RAILWAY.md
+#
+# Health (opcional): GET https://<seu-dominio-railway>/api/health
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.next/
+.env
+.env.local
+*.env
+
+# SQLite local (não enviar ao GitHub)
+*.db
+*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+.vercel
+.railway
+
+# IDE
+.vscode/
+.idea/

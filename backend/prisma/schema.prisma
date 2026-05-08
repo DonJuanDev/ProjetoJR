@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  nome      String
+  slug      String   @unique
+  plano     String   @default("basic")
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios  Usuario[]
+  comandas  Comanda[]
+  produtos  Produto[]
+  eventos   Evento[]
+
+  mpAccessToken      String?
+  mpPublicKey        String?
+  mpWebhookSecret    String?
+
+  logoImage             String?
+
+  pixManualAtivo        Boolean @default(false)
+  pixManualChave        String?
+  pixManualDescricao    String?
+  pixManualQrCodeImage  String?
+
+  @@map("tenants")
+}
+
+model Usuario {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  email     String
+  senha     String
+  role      String   @default("STAFF")
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([email, tenantId])
+  @@map("usuarios")
+}
+
+model Evento {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  descricao String?
+  data      DateTime
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  comandas  Comanda[]
+
+  @@map("eventos")
+}
+
+model Produto {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  preco     Float
+  categoria String
+  descricao String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  itens     ItemPedido[]
+
+  @@map("produtos")
+}
+
+model Comanda {
+  id               String    @id @default(uuid())
+  tenantId         String
+  eventoId         String?
+  codigo           String    @unique
+  qrCodeHash       String    @unique
+  qrCodeUrl        String?
+  clienteNome      String?
+  clienteTelefone  String?
+  status           String    @default("ABERTA")
+  total            Float     @default(0)
+  usadaEm          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  paidAt           DateTime?
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  evento     Evento?        @relation(fields: [eventoId], references: [id])
+  pedidos    Pedido[]
+  pagamentos Pagamento[]
+  divisoes   DivisaoConta[]
+
+  @@map("comandas")
+}
+
+model DivisaoConta {
+  id          String    @id @default(uuid())
+  comandaId   String
+  nome        String    @default("Pessoa")
+  valor       Float
+  status      String    @default("PENDENTE")
+  pixQrCode   String?
+  pixQrCodeBase64 String?
+  pixExpiracao DateTime?
+  mpPaymentId String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  comanda     Comanda   @relation(fields: [comandaId], references: [id])
+
+  @@map("divisoes_conta")
+}
+
+model Pedido {
+  id        String   @id @default(uuid())
+  comandaId String
+  status    String   @default("PENDENTE")
+  total     Float
+  obs       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comanda   Comanda  @relation(fields: [comandaId], references: [id])
+  itens     ItemPedido[]
+
+  @@map("pedidos")
+}
+
+model ItemPedido {
+  id         String  @id @default(uuid())
+  pedidoId   String
+  produtoId  String
+  quantidade Int
+  precoUnit  Float
+  subtotal   Float
+
+  pedido     Pedido  @relation(fields: [pedidoId], references: [id])
+  produto    Produto @relation(fields: [produtoId], references: [id])
+
+  @@map("itens_pedido")
+}
+
+model Pagamento {
+  id              String    @id @default(uuid())
+  comandaId       String
+  mpPaymentId     String?   @unique
+  mpPreferenceId  String?
+  status          String    @default("PENDENTE")
+  metodo          String?
+  valor           Float
+  pixQrCode       String?
+  pixQrCodeBase64 String?
+  pixExpiracao    DateTime?
+  webhookData     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  paidAt          DateTime?
+
+  comanda         Comanda   @relation(fields: [comandaId], references: [id])
+
+  @@map("pagamentos")
+}
