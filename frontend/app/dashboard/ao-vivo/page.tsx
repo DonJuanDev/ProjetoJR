@@ -40,31 +40,26 @@ export default function AoVivoPage() {
   const totalPedidos = comandas.reduce((s, c) => s + c.pedidos.length, 0)
 
   return (
-    <div className="space-y-7 pb-6">
-      <div className="dash-page-hero anim-up">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-500/40" />
-              </span>
-              <div>
-                <p className="dash-hero-kicker">Tempo real</p>
-                <h1 className="dash-hero-title">Ao vivo na casa</h1>
-              </div>
-            </div>
-            <p className="section-sub mt-2">
-              Atualizado às {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </p>
-          </div>
-          <button type="button" onClick={fetch} className="btn-ghost shrink-0 self-start sm:self-center">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Atualizar
-          </button>
+    <div className="space-y-5 pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-35" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <p className="text-sm truncate" style={{ color: 'var(--text-2)' }}>
+            <span className="text-[var(--text-3)]">Atualizado</span>{' '}
+            {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            {' · '}
+            {comandas.length} mesa(s) · {totalPedidos} pedido(s)
+          </p>
         </div>
+        <button type="button" onClick={fetch} className="btn-ghost shrink-0 inline-flex items-center gap-2 text-sm">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Atualizar
+        </button>
       </div>
 
       {/* Mini stats */}

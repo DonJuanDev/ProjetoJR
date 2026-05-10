@@ -102,31 +102,24 @@ export default function ConfiguracoesPage() {
     finally { setCriandoUser(false) }
   }
 
-  const TABS: { key: Section; label: string; icon: string }[] = [
-    { key: 'geral',      label: 'Geral',        icon: '🏢' },
-    { key: 'pagamentos', label: 'Pagamentos',   icon: '💳' },
-    { key: 'usuarios',   label: 'Usuários',     icon: '👥' },
-    { key: 'seguranca',  label: 'Aparência',    icon: '🎨' },
+  const TABS: { key: Section; label: string }[] = [
+    { key: 'geral', label: 'Geral' },
+    { key: 'pagamentos', label: 'Pagamentos' },
+    { key: 'usuarios', label: 'Usuários' },
+    { key: 'seguranca', label: 'Aparência' },
   ]
 
   return (
-    <div className="space-y-6 max-w-3xl pb-8">
-      <div className="dash-page-hero anim-up">
-        <p className="dash-hero-kicker">Estabelecimento</p>
-        <h1 className="dash-hero-title">Configurações</h1>
-        <p className="section-sub mt-2">Marca, pagamentos e aparência do sistema</p>
-      </div>
-
+    <div className="space-y-5 max-w-3xl pb-8">
       {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-2xl anim-up stagger-1" style={{ background: 'var(--bg-input)' }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setSection(t.key)}
-            className="flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all sm:text-sm"
             style={section === t.key
               ? { background: 'var(--accent)', color: '#fff', boxShadow: '0 4px 12px var(--accent-glow)' }
               : { color: 'var(--text-2)' }}>
-            <span>{t.icon}</span>
-            <span className="hidden sm:inline">{t.label}</span>
+            {t.label}
           </button>
         ))}
       </div>

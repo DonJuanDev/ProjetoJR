@@ -187,42 +187,50 @@ export default function ClientePage() {
   )
 
   if (comanda?.status === 'PAGA') return (
-    <div className="min-h-screen bg-[#060610] flex flex-col items-center justify-center p-6 text-center">
-      <div className="w-24 h-24 rounded-3xl bg-emerald-500/15 border-2 border-emerald-500/40 flex items-center justify-center text-5xl mb-6"
-        style={{ boxShadow: '0 0 60px rgba(16,185,129,0.2)' }}>✅</div>
-      <h1 className="text-3xl font-black text-emerald-400 mb-1">Tudo certo!</h1>
-      <p className="text-white/40 mb-4">Comanda #{comanda.codigo} paga</p>
-      <p className="text-3xl font-black text-white mb-8">{formatCurrency(comanda.total)}</p>
+    <div className="min-h-screen bg-[#060610] flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+      <div className="w-20 h-20 rounded-3xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-4xl mb-5">✓</div>
+      <h1 className="text-2xl font-black text-emerald-400 mb-2">Pagamento confirmado</h1>
+      <p className="text-white/40 text-sm mb-1">Comanda #{comanda.codigo}</p>
+      <p className="text-2xl font-black text-white mb-6">{formatCurrency(comanda.total)}</p>
       {(Number(comanda.saldoCredito) || 0) > 0 && (
         <p className="text-amber-400/90 text-sm mb-6">
-          Saldo carteira pré-paga: <strong>{formatCurrency(comanda.saldoCredito ?? 0)}</strong>
+          Saldo carteira: <strong>{formatCurrency(comanda.saldoCredito ?? 0)}</strong>
         </p>
       )}
-      <p className="text-white/25 text-sm">Apresente sua pulseira na saída 🎉</p>
+      <p className="text-white/30 text-xs">Apresente na saída</p>
     </div>
   )
 
   return (
     <div className="min-h-screen bg-[#060610] flex flex-col max-w-sm mx-auto">
       {/* Header */}
-      <div className="px-5 pt-8 pb-5 border-b border-white/[0.05]">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
+      <div className="px-5 pt-6 pb-4 border-b border-white/[0.06]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
             {comanda?.tenant.logoImage && (
-              <img src={comanda.tenant.logoImage} alt="Logo" className="w-6 h-6 object-contain rounded" />
+              <img src={comanda.tenant.logoImage} alt="" className="w-10 h-10 object-contain rounded-lg flex-shrink-0 bg-white/5 p-1" />
             )}
-            <span className="text-white/25 text-xs font-medium">{comanda?.tenant.nome}</span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-white/35 truncate">{comanda?.tenant.nome}</p>
+              <h1 className="text-xl font-black text-white mt-1 truncate">
+                Comanda <span className="text-violet-400">#{comanda?.codigo}</span>
+              </h1>
+              {comanda?.clienteNome && (
+                <p className="text-white/40 text-xs mt-1 truncate">{comanda.clienteNome}</p>
+              )}
+            </div>
           </div>
           <StatusBadge status={comanda?.status || ''} />
         </div>
-        <h1 className="text-xl font-black text-white">Comanda <span className="text-violet-400">#{comanda?.codigo}</span></h1>
-        {comanda?.clienteNome && <p className="text-white/40 text-sm mt-0.5">👤 {comanda.clienteNome}</p>}
-
         {retorno === 'sucesso' && (
-          <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">✅ Pagamento aprovado!</div>
+          <div className="mt-3 py-2.5 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-sm text-center">
+            Pagamento recebido
+          </div>
         )}
         {retorno === 'falha' && (
-          <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">❌ Pagamento não aprovado.</div>
+          <div className="mt-3 py-2.5 px-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm text-center">
+            Pagamento não concluído
+          </div>
         )}
       </div>
 
@@ -262,66 +270,66 @@ export default function ClientePage() {
       </div>
 
       {/* Footer / Payment */}
-      <div className="sticky bottom-0 bg-gradient-to-t from-[#060610] via-[#060610]/95 to-transparent pt-6 px-5 pb-8 space-y-3">
-        {/* Total */}
-        <div className="flex items-baseline justify-between">
-          <span className="text-white/40 font-medium">Total consumo</span>
-          <span className="text-3xl font-black text-white">{formatCurrency(comanda?.total || 0)}</span>
-        </div>
-
-        {/* Carteira pré-paga */}
-        {!['PAGA', 'CANCELADA', 'BLOQUEADA'].includes(String(comanda?.status)) && (
-          <div className="rounded-2xl bg-amber-500/[0.07] border border-amber-500/20 p-3 space-y-2">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-amber-200/70">Carteira pré-paga</span>
-              <span className="font-black text-amber-400">{formatCurrency(comanda?.saldoCredito ?? 0)}</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={1}
-                step="1"
-                placeholder="Valor R$"
-                value={rechargeVal}
-                onChange={(e) => setRechargeVal(e.target.value)}
-                className="input flex-1 text-sm min-w-0"
-              />
-              <button
-                type="button"
-                onClick={recarregarCarteiraPix}
-                disabled={paying}
-                className="py-2.5 px-3 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 transition-all whitespace-nowrap disabled:opacity-40"
-              >
-                {paying ? '…' : 'PIX'}
-              </button>
-            </div>
-            <p className="text-[10px] text-white/25 leading-tight">Use o saldo no bar com o staff (débito na hora do pedido).</p>
+      <div className="sticky bottom-0 bg-gradient-to-t from-[#060610] via-[#060610]/98 to-transparent pt-4 px-5 pb-7 space-y-3">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-white/45 text-sm">Total da conta</span>
+            <span className="text-2xl font-black text-white tabular-nums">{formatCurrency(comanda?.total || 0)}</span>
           </div>
-        )}
+
+          {!['PAGA', 'CANCELADA', 'BLOQUEADA'].includes(String(comanda?.status)) && (
+            <details className="mt-3 pt-3 border-t border-white/[0.06] group">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                <span className="text-white/55">Carteira pré-paga</span>
+                <span className="text-amber-400 font-bold tabular-nums">{formatCurrency(comanda?.saldoCredito ?? 0)}</span>
+              </summary>
+              <div className="flex gap-2 mt-3">
+                <input
+                  type="number"
+                  min={1}
+                  step="1"
+                  placeholder="Valor"
+                  value={rechargeVal}
+                  onChange={(e) => setRechargeVal(e.target.value)}
+                  className="input flex-1 text-sm min-w-0"
+                />
+                <button
+                  type="button"
+                  onClick={recarregarCarteiraPix}
+                  disabled={paying}
+                  className="py-2.5 px-4 rounded-xl font-semibold text-sm bg-amber-600 hover:bg-amber-500 transition-colors whitespace-nowrap disabled:opacity-40"
+                >
+                  {paying ? '…' : 'PIX'}
+                </button>
+              </div>
+              <p className="text-[11px] text-white/28 mt-2 leading-snug">Crédito para consumo com a equipe no balcão.</p>
+            </details>
+          )}
+        </div>
 
         {payStep === 'idle' && (
           <div className="space-y-2">
             <button
               onClick={() => setPayStep('choose')}
               disabled={!comanda?.total || Number(comanda.total) === 0}
-              className="w-full py-4 rounded-2xl font-bold text-base bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 active:scale-95 transition-all disabled:opacity-30 shadow-xl shadow-violet-500/25"
+              className="w-full py-3.5 rounded-2xl font-bold text-base bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 transition-all disabled:opacity-35"
             >
-              💳 Pagar agora
+              Pagar conta
             </button>
             {Number(comanda?.total) > 0 && (
               <button
                 onClick={iniciarDividir}
-                className="w-full py-3.5 rounded-2xl font-bold text-sm bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.09] active:scale-95 transition-all"
+                className="w-full py-3 rounded-2xl font-semibold text-sm bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.09] transition-colors"
               >
-                👥 Dividir conta
+                Dividir com outras pessoas
               </button>
             )}
           </div>
         )}
 
         {payStep === 'choose' && (
-          <div className="space-y-2">
-            <p className="text-center text-white/40 text-sm">Escolha a forma de pagamento</p>
+          <div className="space-y-3">
+            <p className="text-center text-white/40 text-xs">Forma de pagamento</p>
 
             {/* Pix — manual OU automático, nunca os dois */}
             {comanda?.tenant.pixManualAtivo && (comanda.tenant.pixManualChave || comanda.tenant.pixManualQrCodeImage) ? (

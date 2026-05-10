@@ -110,39 +110,32 @@ export default function CrmPage() {
   }, [data])
 
   return (
-    <div className="space-y-7 pb-8">
-      {/* Hero */}
-      <div className="dash-page-hero anim-up">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="dash-hero-kicker">Relacionamento</p>
-            <h1 className="dash-hero-title">CRM — quem ama sua casa</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
-              Segmentação por fidelidade, ticket médio e preferências. Mostre ao cliente que você conhece o público.
-            </p>
-          </div>
-          <button type="button" onClick={fetchData} className="btn-ghost shrink-0 self-start lg:self-center">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Atualizar dados
-          </button>
-        </div>
-        {topSpend && data && data.clientes.length > 0 && (
-          <div
-            className="dash-glass-inline mt-4 flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 text-sm"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            <span style={{ color: 'var(--text-3)' }}>Destaque do período</span>
-            <span className="font-bold" style={{ color: 'var(--text-1)' }}>
-              {topSpend.nome}
-            </span>
-            <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-              {formatCurrency(topSpend.totalGasto)}
-            </span>
-          </div>
-        )}
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
+        <p className="text-sm max-w-2xl" style={{ color: 'var(--text-3)' }}>
+          Clientes por visitas e gasto. Use os filtros abaixo para segmentar.
+        </p>
+        <button type="button" onClick={fetchData} className="btn-ghost shrink-0 self-start sm:self-auto inline-flex items-center gap-2 text-sm">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Atualizar
+        </button>
       </div>
+      {topSpend && data && data.clientes.length > 0 && (
+        <div
+          className="dash-glass-inline flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 text-sm anim-up"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <span style={{ color: 'var(--text-3)' }}>Destaque do período</span>
+          <span className="font-bold" style={{ color: 'var(--text-1)' }}>
+            {topSpend.nome}
+          </span>
+          <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+            {formatCurrency(topSpend.totalGasto)}
+          </span>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 anim-up stagger-1">

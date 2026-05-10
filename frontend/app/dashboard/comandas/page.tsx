@@ -83,21 +83,17 @@ export default function ComandasPage() {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="dash-page-hero anim-up">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="dash-hero-kicker">Operação</p>
-            <h1 className="dash-hero-title">Comandas</h1>
-            <p className="section-sub mt-2">{comandas.length} registros · filtros em tempo real</p>
-          </div>
-          <button type="button" onClick={() => setShowCreate(true)} className="btn-primary shrink-0 self-start sm:self-center">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-            </svg>
-            Nova comanda
-          </button>
-        </div>
+    <div className="space-y-5 pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+          {comandas.length} {comandas.length === 1 ? 'comanda' : 'comandas'}
+        </p>
+        <button type="button" onClick={() => setShowCreate(true)} className="btn-primary shrink-0 self-start sm:self-center inline-flex items-center gap-2">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+          </svg>
+          Nova comanda
+        </button>
       </div>
 
       {/* Filters */}

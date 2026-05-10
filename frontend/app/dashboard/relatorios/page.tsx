@@ -119,12 +119,7 @@ export default function RelatoriosPage() {
 
   if (loading) {
     return (
-      <div className="space-y-7 pb-8">
-        <div className="dash-page-hero">
-          <div className="dash-skeleton-card mb-3 h-5 w-40" />
-          <div className="dash-skeleton-card h-10 w-3/4 max-w-md" />
-          <div className="dash-skeleton-card mt-4 h-4 w-full max-w-lg" />
-        </div>
+      <div className="space-y-5 pb-8">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="dash-skeleton-card h-[118px]" />
@@ -140,24 +135,17 @@ export default function RelatoriosPage() {
   }
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* Hero */}
-      <div className="dash-page-hero anim-up">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="dash-hero-kicker">Inteligência</p>
-            <h1 className="dash-hero-title">Consumo em alta definição</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
-              Picos de bar, mix de status e ranking de produtos — visão executiva para você impressionar investidores e equipe.
-            </p>
-          </div>
-          <button type="button" onClick={fetchData} className="btn-ghost shrink-0 self-start lg:self-center">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Recalcular
-          </button>
-        </div>
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+          Picos, status das comandas e ranking de produtos.
+        </p>
+        <button type="button" onClick={fetchData} className="btn-ghost shrink-0 self-start sm:self-auto inline-flex items-center gap-2 text-sm">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Atualizar dados
+        </button>
       </div>
 
       {/* KPIs */}

@@ -69,12 +69,10 @@ export default function PedidosPage() {
     }, {})
 
   return (
-    <div className="anim-up pb-6">
-      <div className="dash-page-hero mb-6">
-        <p className="dash-hero-kicker">Balcão</p>
-        <h1 className="dash-hero-title">Lançar pedido</h1>
-        <p className="section-sub mt-2">Selecione a comanda e monte o pedido com agilidade</p>
-      </div>
+    <div className="anim-up pb-6 space-y-5">
+      <p className="text-sm max-w-xl" style={{ color: 'var(--text-3)' }}>
+        Escolha uma comanda aberta e monte o pedido. {comandas.length > 0 ? `${comandas.length} aberta(s).` : 'Nenhuma comanda disponível.'}
+      </p>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left: produto selection */}
