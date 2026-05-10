@@ -11,7 +11,17 @@ interface ItemPedido { id: string; quantidade: number; precoUnit: number; subtot
 interface Pedido { id: string; status: string; total: number; obs?: string; createdAt: string; itens: ItemPedido[] }
 interface Pagamento { id: string; status: string; metodo?: string; valor: number; pixQrCode?: string; pixQrCodeBase64?: string }
 interface DivisaoConta { id: string; nome: string; valor: number; status: string; pixQrCode?: string; pixQrCodeBase64?: string; pixExpiracao?: string }
-interface Comanda { id: string; codigo: string; status: string; total: number; clienteNome?: string; pedidos: Pedido[]; pagamentos: Pagamento[]; tenant: { nome: string; logoImage?: string; pixManualAtivo?: boolean; pixManualChave?: string; pixManualDescricao?: string; pixManualQrCodeImage?: string } }
+interface Comanda {
+  id: string
+  codigo: string
+  status: string
+  total: number
+  saldoCredito?: number
+  clienteNome?: string
+  pedidos: Pedido[]
+  pagamentos: Pagamento[]
+  tenant: { nome: string; logoImage?: string; pixManualAtivo?: boolean; pixManualChave?: string; pixManualDescricao?: string; pixManualQrCodeImage?: string }
+}
 
 export default function ClientePage() {
   const { id: qrHash } = useParams<{ id: string }>()
@@ -22,6 +32,7 @@ export default function ClientePage() {
   const [payStep, setPayStep] = useState<'idle' | 'choose' | 'pix' | 'card' | 'pix-manual' | 'dividir' | 'divisoes'>('idle')
   const [payData, setPayData] = useState<any>(null)
   const [paying, setPaying] = useState(false)
+  const [rechargeVal, setRechargeVal] = useState('')
   const [email, setEmail] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedPix, setCopiedPix] = useState(false)
@@ -50,7 +61,10 @@ export default function ClientePage() {
     if (!comanda) return
     joinComanda(comanda.id)
     const s = getSocket()
-    s.on('comanda:atualizada', (d: any) => { if (d.comanda) setComanda(d.comanda); else fetchComanda() })
+    s.on('comanda:atualizada', (d: any) => {
+      if (d?.comanda) setComanda(d.comanda)
+      else fetchComanda()
+    })
     s.on('pagamento:confirmado', (d: any) => {
       fetchComanda()
       if (d.status === 'PAGA') { setPayStep('idle'); setDivisoes([]) }
@@ -60,6 +74,28 @@ export default function ClientePage() {
     })
     return () => { s.off('comanda:atualizada'); s.off('pagamento:confirmado') }
   }, [comanda?.id, fetchComanda])
+
+  async function recarregarCarteiraPix() {
+    const v = parseFloat(String(rechargeVal).replace(',', '.'))
+    if (!comanda || !(v >= 1)) {
+      alert('Informe um valor de recarga mínimo de R$ 1,00.')
+      return
+    }
+    setPaying(true)
+    try {
+      const data = await api.post<any>('/pagamentos/recarga-carteira-pix', {
+        qrHash,
+        valor: v,
+        email: email || undefined,
+      })
+      setPayData(data)
+      setPayStep('pix')
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setPaying(false)
+    }
+  }
 
   async function pagar(metodo: 'pix' | 'card') {
     if (!comanda) return
@@ -157,6 +193,11 @@ export default function ClientePage() {
       <h1 className="text-3xl font-black text-emerald-400 mb-1">Tudo certo!</h1>
       <p className="text-white/40 mb-4">Comanda #{comanda.codigo} paga</p>
       <p className="text-3xl font-black text-white mb-8">{formatCurrency(comanda.total)}</p>
+      {(Number(comanda.saldoCredito) || 0) > 0 && (
+        <p className="text-amber-400/90 text-sm mb-6">
+          Saldo carteira pré-paga: <strong>{formatCurrency(comanda.saldoCredito ?? 0)}</strong>
+        </p>
+      )}
       <p className="text-white/25 text-sm">Apresente sua pulseira na saída 🎉</p>
     </div>
   )
@@ -224,9 +265,39 @@ export default function ClientePage() {
       <div className="sticky bottom-0 bg-gradient-to-t from-[#060610] via-[#060610]/95 to-transparent pt-6 px-5 pb-8 space-y-3">
         {/* Total */}
         <div className="flex items-baseline justify-between">
-          <span className="text-white/40 font-medium">Total</span>
+          <span className="text-white/40 font-medium">Total consumo</span>
           <span className="text-3xl font-black text-white">{formatCurrency(comanda?.total || 0)}</span>
         </div>
+
+        {/* Carteira pré-paga */}
+        {!['PAGA', 'CANCELADA', 'BLOQUEADA'].includes(String(comanda?.status)) && (
+          <div className="rounded-2xl bg-amber-500/[0.07] border border-amber-500/20 p-3 space-y-2">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-amber-200/70">Carteira pré-paga</span>
+              <span className="font-black text-amber-400">{formatCurrency(comanda?.saldoCredito ?? 0)}</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min={1}
+                step="1"
+                placeholder="Valor R$"
+                value={rechargeVal}
+                onChange={(e) => setRechargeVal(e.target.value)}
+                className="input flex-1 text-sm min-w-0"
+              />
+              <button
+                type="button"
+                onClick={recarregarCarteiraPix}
+                disabled={paying}
+                className="py-2.5 px-3 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 transition-all whitespace-nowrap disabled:opacity-40"
+              >
+                {paying ? '…' : 'PIX'}
+              </button>
+            </div>
+            <p className="text-[10px] text-white/25 leading-tight">Use o saldo no bar com o staff (débito na hora do pedido).</p>
+          </div>
+        )}
 
         {payStep === 'idle' && (
           <div className="space-y-2">
@@ -287,7 +358,9 @@ export default function ClientePage() {
 
         {payStep === 'pix' && payData && (
           <div className="space-y-3 text-center">
-            <p className="text-emerald-400 font-bold">⚡ Pix Gerado!</p>
+            <p className="text-emerald-400 font-bold">
+              {payData.tipo === 'recarga_pix' ? '⚡ PIX — recarga da carteira' : '⚡ Pix Gerado!'}
+            </p>
             {payData.qrCodeBase64 && (
               <div className="flex justify-center">
                 <div className="p-3 bg-white rounded-2xl">

@@ -12,6 +12,7 @@ import { ComandasService } from './comandas.service';
 import { CreateComandaDto } from './dto/create-comanda.dto';
 import { ValidarSaidaDto } from './dto/validar-saida.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('comandas')
 export class ComandasController {
@@ -35,6 +36,7 @@ export class ComandasController {
     return this.service.dashboard(req.user.tenantId);
   }
 
+  @SkipThrottle()
   @Get('qr/:hash')
   buscarPorHash(@Param('hash') hash: string) {
     return this.service.buscarPorHash(hash);

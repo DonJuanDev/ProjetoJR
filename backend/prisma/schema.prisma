@@ -47,7 +47,8 @@ model Usuario {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenant               Tenant               @relation(fields: [tenantId], references: [id])
+  movimentosCarteira   MovimentoCarteira[]
 
   @@unique([email, tenantId])
   @@map("usuarios")
@@ -77,6 +78,8 @@ model Produto {
   categoria String
   descricao String?
   ativo     Boolean  @default(true)
+  /// Estoque físico (-1 ou null tratado pelo app como ilimitado)
+  estoque   Int      @default(-1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -97,16 +100,20 @@ model Comanda {
   clienteTelefone  String?
   status           String    @default("ABERTA")
   total            Float     @default(0)
+  saldoCredito     Float     @default(0)
+  /// MAC HMAC-SHA256 (hex); comandas antigas podem ficar nulas — validação só quando presente.
+  qrPayloadMac     String?
   usadaEm          DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   paidAt           DateTime?
 
-  tenant     Tenant         @relation(fields: [tenantId], references: [id])
-  evento     Evento?        @relation(fields: [eventoId], references: [id])
-  pedidos    Pedido[]
-  pagamentos Pagamento[]
-  divisoes   DivisaoConta[]
+  tenant            Tenant               @relation(fields: [tenantId], references: [id])
+  evento            Evento?              @relation(fields: [eventoId], references: [id])
+  pedidos           Pedido[]
+  pagamentos        Pagamento[]
+  divisoes          DivisaoConta[]
+  movimentosCarteira MovimentoCarteira[]
 
   @@map("comandas")
 }
@@ -135,6 +142,7 @@ model Pedido {
   status    String   @default("PENDENTE")
   total     Float
   obs       String?
+  formaPagamento String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -166,6 +174,8 @@ model Pagamento {
   status          String    @default("PENDENTE")
   metodo          String?
   valor           Float
+  /// FECHAR_COMANDA (padrão) ou RECARGA_CARTEIRA (PIX apenas)
+  intencao        String    @default("FECHAR_COMANDA")
   pixQrCode       String?
   pixQrCodeBase64 String?
   pixExpiracao    DateTime?
@@ -174,7 +184,28 @@ model Pagamento {
   updatedAt       DateTime  @updatedAt
   paidAt          DateTime?
 
-  comanda         Comanda   @relation(fields: [comandaId], references: [id])
+  comanda               Comanda            @relation(fields: [comandaId], references: [id])
+  movimentoCarteira     MovimentoCarteira?
 
   @@map("pagamentos")
+}
+
+model MovimentoCarteira {
+  id             String    @id @default(uuid())
+  tenantId       String
+  comandaId      String
+  tipo           String
+  valor          Float
+  saldoAntes     Float
+  saldoDepois    Float
+  usuarioOperadorId String?
+  pagamentoId    String?   @unique
+  observacao     String?
+  createdAt      DateTime  @default(now())
+
+  comanda       Comanda     @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  usuarioOperador Usuario? @relation(fields: [usuarioOperadorId], references: [id])
+  pagamento     Pagamento?  @relation(fields: [pagamentoId], references: [id])
+
+  @@map("movimentos_carteira")
 }

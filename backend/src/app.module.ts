@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
@@ -11,12 +13,19 @@ import { ProdutosModule } from './modules/produtos/produtos.module';
 import { EventsGatewayModule } from './gateways/events.gateway.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HealthController } from './health.controller';
+import { CarteiraModule } from './modules/carteira/carteira.module';
 
 @Module({
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: Number(process.env.RATE_LIMIT_TTL_MS || 60000),
+        limit: Number(process.env.RATE_LIMIT_MAX || 200),
+      },
+    ]),
     PrismaModule,
     EventsGatewayModule,
     AuthModule,
@@ -24,6 +33,7 @@ import { HealthController } from './health.controller';
     ComandasModule,
     PedidosModule,
     PagamentosModule,
+    CarteiraModule,
     ProdutosModule,
     AnalyticsModule,
   ],

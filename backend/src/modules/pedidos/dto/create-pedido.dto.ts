@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsInt, Min, IsOptional, ValidateNested } from 'class-validator';
+import { IsString, IsArray, IsInt, Min, IsOptional, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class ItemDto {
@@ -22,4 +22,12 @@ export class CreatePedidoDto {
   @IsOptional()
   @IsString()
   obs?: string;
+
+  /**
+   * PADRAO: consumo vai para o total da comanda (fecha depois).
+   * DEBITO_CARTEIRA: debita na hora da `saldoCredito` pré-paga (servidor cobra atomicamente com estoque).
+   */
+  @IsOptional()
+  @IsIn(['PADRAO', 'DEBITO_CARTEIRA'])
+  formaPagamento?: 'PADRAO' | 'DEBITO_CARTEIRA';
 }

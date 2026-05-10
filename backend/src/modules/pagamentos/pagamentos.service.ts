@@ -9,6 +9,7 @@ import { EventsGateway } from '../../gateways/events.gateway';
 import { CriarPagamentoDto } from './dto/criar-pagamento.dto';
 import MercadoPagoConfig, { Payment, Preference } from 'mercadopago';
 import * as crypto from 'crypto';
+import { RecargaCarteiraPixDto } from './dto/recarga-carteira-pix.dto';
 
 @Injectable()
 export class PagamentosService {
@@ -86,6 +87,7 @@ export class PagamentosService {
         mpPaymentId: String(result.id),
         status: 'PENDENTE',
         metodo: 'pix',
+        intencao: 'FECHAR_COMANDA',
         valor: comanda.total,
         pixQrCode: result.point_of_interaction?.transaction_data?.qr_code,
         pixQrCodeBase64: result.point_of_interaction?.transaction_data?.qr_code_base64,
@@ -143,6 +145,7 @@ export class PagamentosService {
         mpPreferenceId: result.id,
         status: 'PENDENTE',
         metodo: 'card',
+        intencao: 'FECHAR_COMANDA',
         valor: comanda.total,
       },
     });
@@ -154,6 +157,67 @@ export class PagamentosService {
       checkoutUrl: result.init_point,
       sandboxUrl: result.sandbox_init_point,
       valor: comanda.total,
+    };
+  }
+
+  /** PIX para creditar saldo pré-pago da comanda (sem fechar conta). Sem alterar Firebase — fluxo igual ao projeto de referência. */
+  async criarRecargaCarteiraPix(dto: RecargaCarteiraPixDto) {
+    const comanda = await this.prisma.comanda.findUnique({
+      where: { qrCodeHash: dto.qrHash.trim() },
+      include: { tenant: true },
+    });
+
+    if (!comanda) throw new NotFoundException('Comanda não encontrada');
+    if (['BLOQUEADA', 'CANCELADA'].includes(comanda.status)) {
+      throw new BadRequestException('Esta comanda não aceita recarga');
+    }
+    const v = Number(dto.valor);
+    if (!(v >= 1)) {
+      throw new BadRequestException('Valor mínimo de recarga: R$ 1,00');
+    }
+
+    const accessToken = await this.getTenantToken(comanda.tenantId);
+    const client = this.getMpClient(accessToken);
+    const backendUrl = this.config.get('BACKEND_URL', 'http://localhost:3001');
+
+    const payment = new Payment(client);
+    const extRef = `wallet:${comanda.id}:${crypto.randomUUID()}`;
+    const result = await payment.create({
+      body: {
+        transaction_amount: v,
+        description: `Recarga carteira — Comanda ${comanda.codigo} — ${comanda.tenant.nome}`,
+        payment_method_id: 'pix',
+        payer: {
+          email: dto.email || 'cliente@jrsolution.app',
+        },
+        notification_url: `${backendUrl}/api/pagamentos/webhook`,
+        external_reference: extRef,
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      },
+    });
+
+    const pagamento = await this.prisma.pagamento.create({
+      data: {
+        comandaId: comanda.id,
+        mpPaymentId: String(result.id),
+        status: 'PENDENTE',
+        metodo: 'pix',
+        intencao: 'RECARGA_CARTEIRA',
+        valor: v,
+        pixQrCode: result.point_of_interaction?.transaction_data?.qr_code,
+        pixQrCodeBase64: result.point_of_interaction?.transaction_data?.qr_code_base64,
+        pixExpiracao: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    return {
+      tipo: 'recarga_pix',
+      pagamentoId: pagamento.id,
+      mpPaymentId: result.id,
+      qrCode: pagamento.pixQrCode,
+      qrCodeBase64: pagamento.pixQrCodeBase64,
+      expiracao: pagamento.pixExpiracao,
+      valor: v,
     };
   }
 
@@ -173,21 +237,20 @@ export class PagamentosService {
       }
     }
 
-    const pagamento = await this.prisma.pagamento.findUnique({
+    const pagamentoRow = await this.prisma.pagamento.findUnique({
       where: { mpPaymentId: String(dataId) },
       include: { comanda: { include: { tenant: true } } },
     });
 
-    if (!pagamento) return { received: true, info: 'Pagamento não encontrado no sistema' };
+    if (!pagamentoRow) return { received: true, info: 'Pagamento não encontrado no sistema' };
 
-    const accessToken = await this.getTenantToken(pagamento.comanda.tenantId);
+    const accessToken = await this.getTenantToken(pagamentoRow.comanda.tenantId);
     const client = this.getMpClient(accessToken);
     const paymentClient = new Payment(client);
-
     const mpPagamento = await paymentClient.get({ id: Number(dataId) });
-    const statusMp = mpPagamento.status;
+    const statusMp = mpPagamento.status as string;
 
-    const statusMap: Record<string, any> = {
+    const statusMap: Record<string, string> = {
       approved: 'APROVADO',
       pending: 'PROCESSANDO',
       in_process: 'PROCESSANDO',
@@ -198,37 +261,119 @@ export class PagamentosService {
 
     const novoStatus = statusMap[statusMp] || 'PROCESSANDO';
 
-    await this.prisma.$transaction(async (tx) => {
+    if (statusMp === 'approved' && pagamentoRow.status === 'APROVADO') {
+      return { received: true, idempotent: true, status: novoStatus };
+    }
+
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      if (statusMp === 'approved') {
+        const upd = await tx.pagamento.updateMany({
+          where: { id: pagamentoRow.id, NOT: { status: 'APROVADO' } },
+          data: {
+            status: 'APROVADO',
+            webhookData: JSON.stringify(body),
+            paidAt: new Date(),
+          },
+        });
+
+        if (upd.count === 0) {
+          return { transitioned: false, carteiraPix: false, comandaId: pagamentoRow.comandaId, pagamentoId: pagamentoRow.id };
+        }
+
+        const pFresh = await tx.pagamento.findUniqueOrThrow({
+          where: { id: pagamentoRow.id },
+        });
+
+        if (pFresh.intencao === 'RECARGA_CARTEIRA') {
+          const cmd = await tx.comanda.findUniqueOrThrow({ where: { id: pFresh.comandaId } });
+          const saldoAntes = Number(cmd.saldoCredito);
+          const valor = Number(pFresh.valor);
+
+          await tx.comanda.update({
+            where: { id: cmd.id },
+            data: {
+              saldoCredito: { increment: valor },
+            },
+          });
+
+          await tx.movimentoCarteira.create({
+            data: {
+              tenantId: cmd.tenantId,
+              comandaId: cmd.id,
+              tipo: 'RECARGA_PIX',
+              valor,
+              saldoAntes,
+              saldoDepois: saldoAntes + valor,
+              pagamentoId: pFresh.id,
+            },
+          });
+
+          return {
+            transitioned: true,
+            carteiraPix: true,
+            comandaId: cmd.id,
+            pagamentoId: pFresh.id,
+          };
+        }
+
+        await tx.comanda.update({
+          where: { id: pagamentoRow.comandaId },
+          data: { status: 'PAGA', paidAt: new Date() },
+        });
+
+        return {
+          transitioned: true,
+          carteiraPix: false,
+          comandaId: pagamentoRow.comandaId,
+          pagamentoId: pFresh.id,
+        };
+      }
+
       await tx.pagamento.update({
-        where: { id: pagamento.id },
+        where: { id: pagamentoRow.id },
         data: {
           status: novoStatus,
           webhookData: JSON.stringify(body),
-          paidAt: statusMp === 'approved' ? new Date() : null,
+          paidAt: null,
         },
       });
 
-      if (statusMp === 'approved') {
+      const recusado = statusMp === 'rejected' || statusMp === 'cancelled';
+      if (recusado && pagamentoRow.intencao === 'FECHAR_COMANDA') {
         await tx.comanda.update({
-          where: { id: pagamento.comandaId },
-          data: { status: 'PAGA', paidAt: new Date() },
-        });
-      } else if (statusMp === 'rejected' || statusMp === 'cancelled') {
-        await tx.comanda.update({
-          where: { id: pagamento.comandaId },
+          where: { id: pagamentoRow.comandaId },
           data: { status: 'ABERTA' },
         });
       }
+
+      return {
+        transitioned: false,
+        carteiraPix: false,
+        comandaId: pagamentoRow.comandaId,
+        pagamentoId: pagamentoRow.id,
+      };
     });
 
-    if (statusMp === 'approved') {
-      this.events.emitPagamentoConfirmado(pagamento.comandaId, {
-        status: 'PAGA',
-        pagamentoId: pagamento.id,
-      });
+    if (outcome.transitioned) {
+      if (outcome.carteiraPix) {
+        const c = await this.prisma.comanda.findUnique({
+          where: { id: outcome.comandaId },
+          select: { saldoCredito: true },
+        });
+        this.events.emitComandaAtualizada(outcome.comandaId, {
+          tipo: 'carteira_recarga_pix',
+          saldoCredito: c?.saldoCredito,
+          pagamentoId: outcome.pagamentoId,
+        });
+      } else {
+        this.events.emitPagamentoConfirmado(outcome.comandaId, {
+          status: 'PAGA',
+          pagamentoId: outcome.pagamentoId,
+        });
+      }
     }
 
-    return { received: true, status: novoStatus };
+    return { received: true, status: novoStatus, idempotent: statusMp === 'approved' && !outcome.transitioned };
   }
 
   private validarAssinaturaWebhook(headers: any, body: any, secret: string): boolean {
@@ -354,9 +499,17 @@ export class PagamentosService {
 
     if (type !== 'payment' || !dataId) return { received: true };
 
+    const webhookSecret = this.config.get('MP_WEBHOOK_SECRET');
+    if (webhookSecret && headers['x-signature']) {
+      const isValid = this.validarAssinaturaWebhook(headers, body, webhookSecret);
+      if (!isValid) {
+        return { received: false, error: 'Assinatura inválida' };
+      }
+    }
+
     const divisao = await this.prisma.divisaoConta.findUnique({
       where: { mpPaymentId: String(dataId) },
-      include: { comanda: { include: { tenant: true, divisoes: true } } },
+      include: { comanda: { include: { tenant: true } } },
     });
 
     if (!divisao) return { received: true, info: 'Divisão não encontrada' };
@@ -365,15 +518,29 @@ export class PagamentosService {
     const client = this.getMpClient(accessToken);
     const paymentClient = new Payment(client);
     const mpPagamento = await paymentClient.get({ id: Number(dataId) });
+    const statusMp = mpPagamento.status as string;
 
-    if (mpPagamento.status === 'approved') {
-      await this.prisma.divisaoConta.update({
-        where: { id: divisao.id },
+    if (statusMp !== 'approved') return { received: true };
+
+    if (divisao.status === 'PAGO') {
+      return { received: true, idempotent: true };
+    }
+
+    const ev = await this.prisma.$transaction(async (tx) => {
+      const upd = await tx.divisaoConta.updateMany({
+        where: {
+          id: divisao.id,
+          mpPaymentId: String(dataId),
+          NOT: { status: 'PAGO' },
+        },
         data: { status: 'PAGO' },
       });
 
-      // Estado fresco do banco (include anterior tinha status stale → comanda nunca virava PAGA na última parte)
-      const divisoesAtualizadas = await this.prisma.divisaoConta.findMany({
+      if (upd.count === 0) {
+        return null;
+      }
+
+      const divisoesAtualizadas = await tx.divisaoConta.findMany({
         where: { comandaId: divisao.comandaId },
       });
       const todasPagas =
@@ -381,18 +548,26 @@ export class PagamentosService {
         divisoesAtualizadas.every((d) => d.status === 'PAGO');
 
       if (todasPagas) {
-        await this.prisma.comanda.update({
+        await tx.comanda.update({
           where: { id: divisao.comandaId },
           data: { status: 'PAGA', paidAt: new Date() },
         });
-        this.events.emitPagamentoConfirmado(divisao.comandaId, { status: 'PAGA' });
-      } else {
-        this.events.emitPagamentoConfirmado(divisao.comandaId, {
-          status: 'PARCIAL',
-          divisaoId: divisao.id,
-          nome: divisao.nome,
-        });
+        return { modo: 'PAGA' as const };
       }
+
+      return { modo: 'PARCIAL' as const, nome: divisao.nome };
+    });
+
+    if (!ev) return { received: true, idempotent: true };
+
+    if (ev.modo === 'PAGA') {
+      this.events.emitPagamentoConfirmado(divisao.comandaId, { status: 'PAGA' });
+    } else {
+      this.events.emitPagamentoConfirmado(divisao.comandaId, {
+        status: 'PARCIAL',
+        divisaoId: divisao.id,
+        nome: ev.nome,
+      });
     }
 
     return { received: true };

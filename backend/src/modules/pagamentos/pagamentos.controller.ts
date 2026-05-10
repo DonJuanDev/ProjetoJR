@@ -8,8 +8,10 @@ import {
   Request,
   Param,
 } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PagamentosService } from './pagamentos.service';
 import { CriarPagamentoDto } from './dto/criar-pagamento.dto';
+import { RecargaCarteiraPixDto } from './dto/recarga-carteira-pix.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { IsString, IsNumber, IsArray, IsOptional, ValidateNested, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -33,6 +35,7 @@ class PagarDivisaoDto {
   @IsString() @IsOptional() email?: string;
 }
 
+@Throttle({ default: { limit: 80, ttl: 60_000 } })
 @Controller('pagamentos')
 export class PagamentosController {
   constructor(private service: PagamentosService) {}
@@ -42,11 +45,18 @@ export class PagamentosController {
     return this.service.criarPagamento(dto);
   }
 
+  @Post('recarga-carteira-pix')
+  recargaCarteiraPix(@Body() dto: RecargaCarteiraPixDto) {
+    return this.service.criarRecargaCarteiraPix(dto);
+  }
+
+  @SkipThrottle()
   @Post('webhook')
   webhook(@Body() body: any, @Headers() headers: any) {
     return this.service.processarWebhook(body, headers);
   }
 
+  @SkipThrottle()
   @Post('webhook-divisao')
   webhookDivisao(@Body() body: any, @Headers() headers: any) {
     return this.service.processarWebhookDivisao(body, headers);

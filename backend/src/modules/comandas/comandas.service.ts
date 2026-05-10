@@ -7,6 +7,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../../gateways/events.gateway';
 import { CreateComandaDto } from './dto/create-comanda.dto';
+import { ConfigService } from '@nestjs/config';
+import { qrComandaPayloadMac } from '../../common/hmac.util';
 import { v4 as uuidv4 } from 'uuid';
 import * as QRCode from 'qrcode';
 import * as crypto from 'crypto';
@@ -16,6 +18,7 @@ export class ComandasService {
   constructor(
     private prisma: PrismaService,
     private events: EventsGateway,
+    private config: ConfigService,
   ) {}
 
   /** 6 caracteres A–Z0–9 com entropia adequada (evita colisão em `codigo` @unique). */
@@ -45,38 +48,49 @@ export class ComandasService {
       const id = uuidv4();
       const codigo = this.gerarCodigo();
       const qrHash = this.gerarQrHash(id);
-      const qrUrl = `${frontendUrl}/cliente/${qrHash}`;
-
-      let qrCodeUrl: string;
-      try {
-        qrCodeUrl = await QRCode.toDataURL(qrUrl, {
-          errorCorrectionLevel: 'H',
-          margin: 2,
-          width: 300,
-        });
-      } catch (e) {
-        console.error('QRCode.toDataURL falhou', e);
-        throw new BadRequestException('Falha ao gerar imagem do QR Code.');
-      }
 
       try {
-        const comanda = await this.prisma.comanda.create({
-          data: {
-            id,
-            tenantId,
-            eventoId: dto.eventoId || null,
-            codigo,
-            qrCodeHash: qrHash,
-            qrCodeUrl,
-            clienteNome: dto.clienteNome || null,
-            clienteTelefone: dto.clienteTelefone || null,
-            status: 'ABERTA',
-            total: 0,
-          },
+        const secret = this.config.get('QR_SECRET', 'qr-secret-change-me');
+
+        const saved = await this.prisma.$transaction(async (tx) => {
+          const comandaBase = await tx.comanda.create({
+            data: {
+              id,
+              tenantId,
+              eventoId: dto.eventoId || null,
+              codigo,
+              qrCodeHash: qrHash,
+              qrCodeUrl: null,
+              clienteNome: dto.clienteNome || null,
+              clienteTelefone: dto.clienteTelefone || null,
+              status: 'ABERTA',
+              total: 0,
+            },
+          });
+
+          const mac = qrComandaPayloadMac(secret, comandaBase.id, qrHash);
+          const qrUrlComSig = `${frontendUrl}/cliente/${qrHash}?sig=${encodeURIComponent(mac)}`;
+
+          let qrImg: string;
+          try {
+            qrImg = await QRCode.toDataURL(qrUrlComSig, {
+              errorCorrectionLevel: 'H',
+              margin: 2,
+              width: 300,
+            });
+          } catch (err) {
+            console.error('QRCode.toDataURL falhou', err);
+            throw new BadRequestException('Falha ao gerar imagem do QR Code.');
+          }
+
+          return tx.comanda.update({
+            where: { id: comandaBase.id },
+            data: { qrPayloadMac: mac, qrCodeUrl: qrImg },
+          });
         });
 
-        this.events.emitComandaCriada(tenantId, comanda);
-        return comanda;
+        this.events.emitComandaCriada(tenantId, saved);
+        return saved;
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
           continue;

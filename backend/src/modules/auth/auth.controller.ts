@@ -1,4 +1,5 @@
 import { Controller, Post, Body } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { IsEmail, IsString } from 'class-validator';
 
@@ -13,6 +14,7 @@ class LoginDto {
   tenantSlug: string;
 }
 
+@SkipThrottle()
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}

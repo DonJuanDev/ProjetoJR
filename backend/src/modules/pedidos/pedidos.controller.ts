@@ -1,10 +1,12 @@
 import { Controller, Post, Get, Param, Body, UseGuards, Request, Delete } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { PedidosService } from './pedidos.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('pedidos')
 @UseGuards(JwtAuthGuard)
+@Throttle({ default: { limit: 120, ttl: 60_000 } })
 export class PedidosController {
   constructor(private service: PedidosService) {}
 

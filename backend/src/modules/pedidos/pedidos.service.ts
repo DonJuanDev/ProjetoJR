@@ -39,34 +39,105 @@ export class PedidosService {
       throw new BadRequestException('Um ou mais produtos não encontrados');
     }
 
+    const forma = dto.formaPagamento || 'PADRAO';
+
     const itensData = dto.itens.map((item) => {
-      const produto = produtos.find((p) => p.id === item.produtoId);
+      const produto = produtos.find((p) => p.id === item.produtoId)!;
       const precoUnit = Number(produto.preco);
       return {
         produtoId: item.produtoId,
         quantidade: item.quantidade,
         precoUnit,
+        produtoNome: produto.nome,
+        estoquePrev: produto.estoque,
         subtotal: precoUnit * item.quantidade,
       };
     });
 
+    for (const row of itensData) {
+      if (row.estoquePrev !== -1 && row.quantidade > row.estoquePrev) {
+        throw new BadRequestException(
+          `"${row.produtoNome}" não tem estoque suficiente (disponível: ${row.estoquePrev})`,
+        );
+      }
+    }
+
     const totalPedido = itensData.reduce((s, i) => s + i.subtotal, 0);
 
+    if (forma === 'DEBITO_CARTEIRA' && totalPedido <= 0) {
+      throw new BadRequestException('Total do pedido inválido para débito em carteira');
+    }
+
     const pedido = await this.prisma.$transaction(async (tx) => {
+      const comandaAtual = await tx.comanda.findFirst({
+        where: { id: dto.comandaId, tenantId },
+      });
+      if (!comandaAtual) throw new NotFoundException('Comanda não encontrada');
+
+      if (forma === 'DEBITO_CARTEIRA') {
+        const saldo = Number(comandaAtual.saldoCredito);
+        if (saldo < totalPedido) {
+          throw new BadRequestException(
+            `Saldo insuficiente na carteira (necessário R$ ${totalPedido.toFixed(2)}, disponível R$ ${saldo.toFixed(2)})`,
+          );
+        }
+      }
+
+      for (const row of itensData) {
+        if (row.estoquePrev === -1) continue;
+
+        await tx.produto.update({
+          where: { id: row.produtoId },
+          data: {
+            estoque: { decrement: row.quantidade },
+          },
+        });
+      }
+
+      const criadoItensPayload = itensData.map(({ produtoId, quantidade, precoUnit, subtotal }) => ({
+        produtoId,
+        quantidade,
+        precoUnit,
+        subtotal,
+      }));
+
       const novoPedido = await tx.pedido.create({
         data: {
           comandaId: dto.comandaId,
           obs: dto.obs,
           total: totalPedido,
           status: 'CONFIRMADO',
+          formaPagamento: forma === 'DEBITO_CARTEIRA' ? 'DEBITO_CARTEIRA' : null,
           itens: {
-            create: itensData,
+            create: criadoItensPayload,
           },
         },
         include: {
           itens: { include: { produto: true } },
         },
       });
+
+      if (forma === 'DEBITO_CARTEIRA') {
+        const saldoAntes = Number(comandaAtual.saldoCredito);
+        const saldoDepois = saldoAntes - totalPedido;
+
+        await tx.comanda.update({
+          where: { id: dto.comandaId },
+          data: { saldoCredito: saldoDepois },
+        });
+
+        await tx.movimentoCarteira.create({
+          data: {
+            tenantId,
+            comandaId: dto.comandaId,
+            tipo: 'DEBITO_PEDIDO',
+            valor: totalPedido,
+            saldoAntes,
+            saldoDepois,
+            observacao: `Pedido ${novoPedido.id}`,
+          },
+        });
+      }
 
       await this.comandas.recalcularTotal(dto.comandaId, tx);
 
@@ -109,7 +180,7 @@ export class PedidosService {
         id: pedidoId,
         comanda: { tenantId },
       },
-      include: { comanda: true },
+      include: { comanda: true, itens: { include: { produto: true } } },
     });
 
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
@@ -118,6 +189,45 @@ export class PedidosService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      for (const item of pedido.itens) {
+        const stock = item.produto.estoque;
+        if (stock !== -1) {
+          await tx.produto.update({
+            where: { id: item.produtoId },
+            data: { estoque: { increment: item.quantidade } },
+          });
+        }
+      }
+
+      if (
+        pedido.formaPagamento === 'DEBITO_CARTEIRA' &&
+        pedido.status !== 'CANCELADO'
+      ) {
+        const cmd = await tx.comanda.findUnique({
+          where: { id: pedido.comandaId },
+        });
+        if (!cmd) throw new NotFoundException('Comanda não encontrada');
+        const antes = Number(cmd.saldoCredito);
+        const valorDevolver = Number(pedido.total);
+
+        await tx.comanda.update({
+          where: { id: pedido.comandaId },
+          data: { saldoCredito: antes + valorDevolver },
+        });
+
+        await tx.movimentoCarteira.create({
+          data: {
+            tenantId,
+            comandaId: pedido.comandaId,
+            tipo: 'ESTORNO_PEDIDO',
+            valor: valorDevolver,
+            saldoAntes: antes,
+            saldoDepois: antes + valorDevolver,
+            observacao: `Estorno cancelamento pedido ${pedido.id}`,
+          },
+        });
+      }
+
       await tx.pedido.update({
         where: { id: pedidoId },
         data: { status: 'CANCELADO' },
