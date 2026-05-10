@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { api, formatCurrency } from '@/lib/api'
+import { DashboardPurposeStrip } from '@/components/dashboard/DashboardPurposeStrip'
 
 interface Sugestao { tipo: string; icone: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa' }
 interface PorHora { hora: number; label: string; quantidade: number; total: number }
@@ -26,6 +27,17 @@ interface Comanda {
   createdAt: string
   paidAt?: string
   pedidos: { itens: { quantidade: number; precoUnit: number; produto: { nome: string; categoria: string } }[] }[]
+}
+
+interface StatusAggregate {
+  status: string
+  quantidade: number
+  total: number
+}
+
+interface StatusMapValue {
+  quantidade: number
+  total: number
 }
 
 const PRIORIDADE_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -59,7 +71,7 @@ const DONUT_HEX: Record<string, string> = {
   CANCELADA: '#94a3b8',
 }
 
-function buildDonutGradient(rows: { status: string; quantidade: number }[], total: number): string | undefined {
+function buildDonutGradient(rows: StatusAggregate[], total: number): string | undefined {
   if (!total || rows.length === 0) return undefined
   let acc = 0
   const parts: string[] = []
@@ -77,21 +89,22 @@ function buildDonutGradient(rows: { status: string; quantidade: number }[], tota
 }
 
 export default function RelatoriosPage() {
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
-  const [statusData, setStatusData] = useState<{ status: string; quantidade: number; total: number }[]>([])
+  const [analytics, setAnalytics] = useState(null as AnalyticsData | null)
+  const [statusData, setStatusData] = useState([] as StatusAggregate[])
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [a, comandas] = await Promise.all([
-        api.get<AnalyticsData>('/analytics/resumo'),
-        api.get<Comanda[]>('/comandas'),
+      const [resumo, todasComandas] = await Promise.all([
+        api.get('/analytics/resumo'),
+        api.get('/comandas'),
       ])
-      setAnalytics(a)
+      setAnalytics(resumo as AnalyticsData)
 
-      const statusMap: Record<string, { quantidade: number; total: number }> = {}
-      comandas.forEach(c => {
+      const statusMap: { [k: string]: StatusMapValue } = {}
+      const comandasList = todasComandas as Comanda[]
+      comandasList.forEach(c => {
         statusMap[c.status] = statusMap[c.status] || { quantidade: 0, total: 0 }
         statusMap[c.status].quantidade++
         statusMap[c.status].total += c.total
@@ -136,10 +149,22 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
-        <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-          Picos, status das comandas e ranking de produtos.
-        </p>
+      <DashboardPurposeStrip
+        variant="inteligencia-relatorios"
+        title="Faturamento e padrões ao longo do tempo"
+        description="Tickets, picos por horário, distribuição por status de comanda e produtos mais vendidos. Pensado para fechamento e gestão — não é atualização sala a sala como o Ao vivo."
+        footerLink={{ href: '/dashboard/crm', label: 'Explorar clientes no CRM →' }}
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between anim-up">
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+            Indicadores consolidados
+          </h2>
+          <p className="mt-1 text-xs sm:text-sm" style={{ color: 'var(--text-2)' }}>
+            Visão gerencial do período processado pela API de analytics.
+          </p>
+        </div>
         <button type="button" onClick={fetchData} className="btn-ghost shrink-0 self-start sm:self-auto inline-flex items-center gap-2 text-sm">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -226,7 +251,11 @@ export default function RelatoriosPage() {
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+          Ritmo e mix operacional
+        </h2>
+        <div className="grid gap-6 lg:grid-cols-2">
         {/* Horário — barras verticais */}
         <div className="card overflow-hidden p-5 anim-up stagger-3">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -386,6 +415,7 @@ export default function RelatoriosPage() {
             ))
           )}
         </div>
+      </div>
       </div>
     </div>
   )

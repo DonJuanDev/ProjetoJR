@@ -30,36 +30,62 @@ function IconCrm()        { return <svg className="w-4.5 h-4.5" fill="none" stro
 
 const GROUPS: NavGroup[] = [
   {
-    label: '',
+    label: 'Painel',
+    items: [{ href: '/dashboard', icon: <IconOverview />, label: 'Visão geral' }],
+  },
+  {
+    label: 'Operação',
     items: [
-      { href: '/dashboard', icon: <IconOverview />, label: 'Visão geral' },
       { href: '/dashboard/ao-vivo', icon: <IconAoVivo />, label: 'Ao vivo', badge: 'live' },
       { href: '/dashboard/comandas', icon: <IconComandas />, label: 'Comandas' },
       { href: '/dashboard/pedidos', icon: <IconPedidos />, label: 'Pedidos' },
       { href: '/dashboard/saida', icon: <IconSaida />, label: 'Saída' },
-      { href: '/dashboard/produtos', icon: <IconProdutos />, label: 'Cardápio' },
-      { href: '/dashboard/crm', icon: <IconCrm />, label: 'CRM' },
-      { href: '/dashboard/relatorios', icon: <IconRelatorio />, label: 'Relatórios' },
-      { href: '/dashboard/configuracoes', icon: <IconConfig />, label: 'Configurações' },
     ],
+  },
+  {
+    label: 'Cardápio',
+    items: [{ href: '/dashboard/produtos', icon: <IconProdutos />, label: 'Itens e preços' }],
+  },
+  {
+    label: 'Inteligência',
+    items: [
+      { href: '/dashboard/relatorios', icon: <IconRelatorio />, label: 'Relatórios' },
+      { href: '/dashboard/crm', icon: <IconCrm />, label: 'CRM' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [{ href: '/dashboard/configuracoes', icon: <IconConfig />, label: 'Configurações' }],
   },
 ]
 
-const DASH_ROUTE_LABELS: { prefix: string; label: string }[] = [
-  { prefix: '/dashboard/configuracoes', label: 'Configurações' },
-  { prefix: '/dashboard/relatorios', label: 'Relatórios' },
-  { prefix: '/dashboard/produtos', label: 'Cardápio' },
-  { prefix: '/dashboard/saida', label: 'Saída' },
-  { prefix: '/dashboard/pedidos', label: 'Pedidos' },
-  { prefix: '/dashboard/comandas', label: 'Comandas' },
-  { prefix: '/dashboard/ao-vivo', label: 'Ao vivo' },
-  { prefix: '/dashboard/crm', label: 'CRM' },
+/** Longest prefix first for nested routes */
+const DASH_ROUTE_META_LIST: { prefix: string; category: string; label: string }[] = [
+  { prefix: '/dashboard/configuracoes', category: 'Sistema', label: 'Configurações' },
+  { prefix: '/dashboard/relatorios', category: 'Inteligência', label: 'Relatórios' },
+  { prefix: '/dashboard/crm', category: 'Inteligência', label: 'CRM' },
+  { prefix: '/dashboard/produtos', category: 'Cardápio', label: 'Itens e preços' },
+  { prefix: '/dashboard/saida', category: 'Operação', label: 'Saída' },
+  { prefix: '/dashboard/pedidos', category: 'Operação', label: 'Pedidos' },
+  { prefix: '/dashboard/comandas', category: 'Operação', label: 'Comandas' },
+  { prefix: '/dashboard/ao-vivo', category: 'Operação', label: 'Ao vivo' },
 ]
 
+function dashRouteMeta(pathname: string) {
+  if (pathname === '/dashboard' || pathname === '/dashboard/') {
+    return { category: 'Painel', label: 'Visão geral' }
+  }
+  const sorted = [...DASH_ROUTE_META_LIST].sort((a, b) => b.prefix.length - a.prefix.length)
+  const hit = sorted.find(r => pathname.startsWith(r.prefix))
+  return hit ?? { category: '', label: 'Painel' }
+}
+
 function dashSectionTitle(pathname: string) {
-  if (pathname === '/dashboard' || pathname === '/dashboard/') return 'Visão geral'
-  const sorted = [...DASH_ROUTE_LABELS].sort((a, b) => b.prefix.length - a.prefix.length)
-  return sorted.find(r => pathname.startsWith(r.prefix))?.label ?? 'Painel'
+  return dashRouteMeta(pathname).label
+}
+
+function dashSectionCategory(pathname: string) {
+  return dashRouteMeta(pathname).category
 }
 
 function dashGreeting() {
@@ -165,14 +191,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-6">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-5">
           {GROUPS.map((group) => (
-            <div key={group.label || 'main'}>
-              {group.label ? (
-                <p className="dash-sidebar-nav-label px-3 mb-2 text-[10px] font-bold uppercase tracking-widest">
-                  {group.label}
-                </p>
-              ) : null}
+            <div key={group.label}>
+              <p className="dash-sidebar-nav-label px-3 mb-2 text-[10px] font-bold uppercase tracking-widest">
+                {group.label}
+              </p>
               <div className="space-y-1">
                 {group.items.map(item => {
                   const active = isActive(item.href)
@@ -231,15 +255,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-wider truncate" style={{ color: 'var(--text-3)' }}>{dashGreeting()}</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest truncate opacity-90" style={{ color: 'var(--accent)' }}>
+              {dashSectionCategory(pathname)}
+            </p>
             <p className="font-bold text-sm dash-mobile-title truncate">{dashSectionTitle(pathname)}</p>
           </div>
           <button type="button" onClick={toggle} className="icon-btn rounded-xl shrink-0">{isDark ? <SunIcon /> : <MoonIcon />}</button>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto">
-          <header className="hidden lg:flex flex-col gap-0.5 mb-8 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
-            <div className="min-w-0 flex flex-col gap-1">
+          <header className="hidden lg:flex flex-col gap-1 mb-8 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="min-w-0 flex flex-col gap-0.5">
               <p className="text-xs font-medium" style={{ color: 'var(--text-3)' }}>{dashGreeting()}</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: 'var(--accent)' }}>
+                {dashSectionCategory(pathname)}
+              </p>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate" style={{ color: 'var(--text-1)' }}>
                 {dashSectionTitle(pathname)}
               </h1>

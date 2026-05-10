@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, formatCurrency } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
+import { DashboardPurposeStrip } from '@/components/dashboard/DashboardPurposeStrip'
 
 interface ItemPedido { id: string; quantidade: number; subtotal: number; produto: { nome: string; preco: number } }
 interface Pedido { id: string; status: string; total: number; obs?: string; createdAt: string; itens: ItemPedido[] }
@@ -13,7 +14,7 @@ export default function AoVivoPage() {
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState(new Date())
 
-  const fetch = useCallback(async () => {
+  const loadAoVivo = useCallback(async () => {
     try {
       const data = await api.get<Comanda[]>('/comandas')
       setComandas(data.filter(c => c.status === 'ABERTA' || c.status === 'AGUARDANDO_PAGAMENTO'))
@@ -22,64 +23,70 @@ export default function AoVivoPage() {
   }, [])
 
   useEffect(() => {
-    fetch()
-    const interval = setInterval(fetch, 30000)
+    loadAoVivo()
+    const interval = setInterval(loadAoVivo, 30000)
     const s = getSocket()
-    s.on('pedido:adicionado', (data: any) => {
-      fetch()
+    s.on('pedido:adicionado', () => {
+      loadAoVivo()
     })
-    s.on('pagamento:confirmado', fetch)
-    s.on('comanda:criada', fetch)
+    s.on('pagamento:confirmado', loadAoVivo)
+    s.on('comanda:criada', loadAoVivo)
     return () => {
       clearInterval(interval)
-      s.off('pedido:adicionado'); s.off('pagamento:confirmado'); s.off('comanda:criada')
+      s.off('pedido:adicionado')
+      s.off('pagamento:confirmado')
+      s.off('comanda:criada')
     }
-  }, [fetch])
+  }, [loadAoVivo])
 
   const totalAberto = comandas.reduce((s, c) => s + c.total, 0)
   const totalPedidos = comandas.reduce((s, c) => s + c.pedidos.length, 0)
 
   return (
     <div className="space-y-5 pb-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
-        <div className="flex items-center gap-3 min-w-0">
+      <DashboardPurposeStrip
+        variant="operacao-ao-vivo"
+        title="O que está acontecendo agora no salão"
+        description="Somente comandas abertas ou aguardando pagamento. Atualiza pelo socket e a cada 30s. Para faturamento e histórico, use Inteligência → Relatórios."
+        footerLink={{ href: '/dashboard/relatorios', label: 'Ver desempenho consolidado →' }}
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up stagger-1">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-35" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </span>
-          <p className="text-sm truncate" style={{ color: 'var(--text-2)' }}>
-            <span className="text-[var(--text-3)]">Atualizado</span>{' '}
+          <p className="text-xs sm:text-sm truncate" style={{ color: 'var(--text-2)' }}>
+            <span className="text-[var(--text-3)]">Última leitura</span>{' '}
             {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            {' · '}
-            {comandas.length} mesa(s) · {totalPedidos} pedido(s)
           </p>
         </div>
-        <button type="button" onClick={fetch} className="btn-ghost shrink-0 inline-flex items-center gap-2 text-sm">
+        <button type="button" onClick={loadAoVivo} className="btn-ghost shrink-0 inline-flex items-center gap-2 text-sm self-start sm:self-center">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          Atualizar
+          Atualizar agora
         </button>
       </div>
 
-      {/* Mini stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 anim-up stagger-1">
+      {/* Resumo operacional (formato compacto — diferente de Relatórios/CRM) */}
+      <div
+        className="flex flex-wrap gap-2 sm:gap-3 rounded-2xl border px-3 py-3 anim-up stagger-2"
+        style={{ borderColor: 'var(--border)', background: 'var(--bg-raised)' }}
+      >
         {[
-          { label: 'Comandas abertas', value: comandas.length, icon: '🎟️', color: '#2563eb' },
-          { label: 'Pedidos ativos', value: totalPedidos, icon: '📝', color: '#0891b2' },
-          { label: 'Total em aberto', value: formatCurrency(totalAberto), icon: '💰', color: '#ea580c' },
-        ].map(s => (
-          <div key={s.label} className="dash-stat-card relative text-center">
-            <div className="dash-stat-blob dash-stat-blob--tint" style={{ background: s.color }} aria-hidden />
-            <div className="relative z-[1] mx-auto max-w-[calc(100%-3.75rem)] px-1">
-              <p className="text-2xl">{s.icon}</p>
-              <p className="mt-2 text-xl font-black tabular-nums" style={{ color: s.color }}>
-                {s.value}
-              </p>
-              <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
-                {s.label}
-              </p>
-            </div>
+          { k: 'Mesas ativas', v: String(comandas.length) },
+          { k: 'Pedidos na fila', v: String(totalPedidos) },
+          { k: 'Consumo em aberto', v: formatCurrency(totalAberto) },
+        ].map(row => (
+          <div
+            key={row.k}
+            className="min-w-[7.5rem] flex-1 rounded-xl border px-3 py-2 sm:py-2.5"
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-input)' }}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>{row.k}</p>
+            <p className="mt-0.5 text-base font-black tabular-nums sm:text-lg" style={{ color: '#059669' }}>{row.v}</p>
           </div>
         ))}
       </div>

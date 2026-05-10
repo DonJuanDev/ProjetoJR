@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { api, formatCurrency } from '@/lib/api'
+import { DashboardPurposeStrip } from '@/components/dashboard/DashboardPurposeStrip'
 
 interface TopBebida { nome: string; qtd: number }
 interface Cliente {
@@ -111,10 +112,17 @@ export default function CrmPage() {
 
   return (
     <div className="space-y-6 pb-8">
+      <DashboardPurposeStrip
+        variant="inteligencia-crm"
+        title="Visitas, gasto e hábitos por cliente identificado"
+        description="Útil para fidelidade e relacionamento. Não lista mesas abertas — isso é Operação → Ao vivo. Indicadores gerais da casa ficam em Relatórios."
+        footerLink={{ href: '/dashboard/ao-vivo', label: 'Ir para o salão ao vivo →' }}
+      />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between anim-up">
-        <p className="text-sm max-w-2xl" style={{ color: 'var(--text-3)' }}>
-          Clientes por visitas e gasto. Use os filtros abaixo para segmentar.
-        </p>
+        <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+          Resumo da base
+        </h2>
         <button type="button" onClick={fetchData} className="btn-ghost shrink-0 self-start sm:self-auto inline-flex items-center gap-2 text-sm">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -127,7 +135,7 @@ export default function CrmPage() {
           className="dash-glass-inline flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 text-sm anim-up"
           style={{ borderColor: 'var(--border)' }}
         >
-          <span style={{ color: 'var(--text-3)' }}>Destaque do período</span>
+          <span style={{ color: 'var(--text-3)' }}>Destaque em gasto</span>
           <span className="font-bold" style={{ color: 'var(--text-1)' }}>
             {topSpend.nome}
           </span>
@@ -180,6 +188,14 @@ export default function CrmPage() {
       {data && data.clientes.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-3 anim-up stagger-2">
           <div className="space-y-4 lg:col-span-2">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                Lista de clientes
+              </h2>
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-2)' }}>
+                Filtros e ordenação só afetam as linhas abaixo — não mexem em comandas nem em relatório financeiro.
+              </p>
+            </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="dash-chip-row">
                 {TIERS.map(t => (
